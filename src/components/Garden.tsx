@@ -60,10 +60,17 @@ export function Garden() {
   const [placedObjects, setPlacedObjects] = useState<PlacedObject[]>([]);
   const [season, setSeason] = useState<SeasonInfo | null>(null);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
+  const [unplaceTarget, setUnplaceTarget] = useState<{
+    inventoryId: number;
+    itemType: string;
+  } | null>(null);
+  const [isDaytime, setIsDaytime] = useState(false);
   const sceneRef = useRef<{
     cam: THREE.PerspectiveCamera;
     tiles: THREE.Mesh[];
     renderer: THREE.WebGLRenderer;
+    setHoverTile: (gx: number, gz: number) => void;
+    clearHoverTile: () => void;
   } | null>(null);
 
   const loadData = useCallback(async () => {
@@ -115,6 +122,8 @@ export function Garden() {
       cam: result.cam,
       tiles: result.tiles,
       renderer: result.renderer,
+      setHoverTile: result.setHoverTile,
+      clearHoverTile: result.clearHoverTile,
     };
 
     return () => {
@@ -181,19 +190,60 @@ export function Garden() {
           console.error("Failed to place item:", e);
         }
       } else if (placedHere) {
-        if (!confirm("このオブジェクトをインベントリに戻す？")) return;
-        try {
-          await invoke("unplace_item", {
-            inventoryId: placedHere.inventory_id,
-          });
-          await loadData();
-        } catch (e) {
-          console.error("Failed to unplace item:", e);
-        }
+        setUnplaceTarget({
+          inventoryId: placedHere.inventory_id,
+          itemType: placedHere.item_type,
+        });
       }
     },
     [selectedItem, placedObjects, loadData]
   );
+
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent<HTMLCanvasElement>) => {
+      if (!sceneRef.current || !selectedItem) {
+        sceneRef.current?.clearHoverTile();
+        return;
+      }
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const mouse = new THREE.Vector2(
+        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        -((e.clientY - rect.top) / rect.height) * 2 + 1
+      );
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(mouse, sceneRef.current.cam);
+      const hits = raycaster.intersectObjects(sceneRef.current.tiles);
+      if (hits.length === 0) {
+        sceneRef.current.clearHoverTile();
+        return;
+      }
+      const tile = hits[0].object as THREE.Mesh;
+      const gx = tile.userData.gx as number;
+      const gz = tile.userData.gz as number;
+      const occupied = placedObjects.some(
+        (o) => Math.round(o.grid_x) === gx && Math.round(o.grid_z) === gz
+      );
+      if (occupied) {
+        sceneRef.current.clearHoverTile();
+      } else {
+        sceneRef.current.setHoverTile(gx, gz);
+      }
+    },
+    [selectedItem, placedObjects]
+  );
+
+  const handleUnplace = async () => {
+    if (!unplaceTarget) return;
+    try {
+      await invoke("unplace_item", { inventoryId: unplaceTarget.inventoryId });
+      setUnplaceTarget(null);
+      await loadData();
+    } catch (e) {
+      console.error("Failed to unplace item:", e);
+    }
+  };
 
   const handleFreeze = async () => {
     if (!confirm("この箱庭を凍結してギャラリーに保存し、更地から再スタートする？")) return;
@@ -223,10 +273,38 @@ export function Garden() {
         ref={canvasRef}
         className={`garden-canvas ${selectedItem ? "placing" : ""}`}
         onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
         onClick={handleCanvasClick}
       />
+      {unplaceTarget && (
+        <div className="unplace-confirm">
+          <span>{itemEmoji[unplaceTarget.itemType] ?? "📦"} インベントリに戻す？</span>
+          <button className="btn-unplace-yes" onClick={handleUnplace}>
+            戻す
+          </button>
+          <button
+            className="btn-unplace-no"
+            onClick={() => setUnplaceTarget(null)}
+          >
+            ×
+          </button>
+        </div>
+      )}
       {season && (
         <div className="season-badge">
+          <button
+            className="btn-daytime"
+            onClick={() => {
+              const next = !isDaytime;
+              setIsDaytime(next);
+              window.dispatchEvent(
+                new CustomEvent("garden-daytime-changed", { detail: next })
+              );
+            }}
+            title={isDaytime ? "夜にする" : "昼にする"}
+          >
+            {isDaytime ? "🌙" : "☀️"}
+          </button>
           <span>Season {season.season_number}</span>
           <span className="season-days">{season.days_elapsed}日目</span>
           {season.should_wipe && (
@@ -372,6 +450,30 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[]) {
       t.userData = { gx, gz: gy };
       root.add(t);
       tiles.push(t);
+    }
+  }
+
+  // --- Tile hover ---
+  let hoveredTile: THREE.Mesh | null = null;
+  function setHoverTile(gx: number, gz: number) {
+    const tile = tiles.find(
+      (t) => t.userData.gx === gx && t.userData.gz === gz
+    );
+    if (tile === hoveredTile) return;
+    clearHoverTile();
+    if (tile) {
+      hoveredTile = tile;
+      const mat = tile.material as THREE.MeshStandardMaterial;
+      mat.emissive.setHex(0x2a4a2a);
+      mat.emissiveIntensity = 1.0;
+    }
+  }
+  function clearHoverTile() {
+    if (hoveredTile) {
+      const mat = hoveredTile.material as THREE.MeshStandardMaterial;
+      mat.emissive.setHex(0x000000);
+      mat.emissiveIntensity = 0;
+      hoveredTile = null;
     }
   }
 
@@ -672,6 +774,87 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[]) {
 
   loop();
 
+  // --- Day/night toggle ---
+  const hemi = scene.children.find(
+    (c) => c instanceof THREE.HemisphereLight
+  ) as THREE.HemisphereLight;
+  const ambient = scene.children.find(
+    (c) => c instanceof THREE.AmbientLight
+  ) as THREE.AmbientLight;
+
+  const nightTileColors = [0x273349, 0x1c2638];
+  const dayTileColors = [0x5a7a52, 0x4d6d45];
+
+  const onDaytimeChanged = (e: Event) => {
+    const day = (e as CustomEvent<boolean>).detail;
+    if (day) {
+      scene.background = new THREE.Color(0x5b8ec4);
+      scene.fog = new THREE.Fog(0x5b8ec4, 16, 38);
+      key.color.setHex(0xffffff);
+      key.intensity = 4.5;
+      hemi.color.setHex(0xaaccff);
+      hemi.groundColor.setHex(0x88aa66);
+      hemi.intensity = 0.8;
+      ambient.color.setHex(0x8899bb);
+      ambient.intensity = 0.6;
+      (orbCore.material as THREE.MeshStandardMaterial).emissive.setHex(0xfffaee);
+      (orbCore.material as THREE.MeshStandardMaterial).emissiveIntensity = 5.0;
+      haloMat.color.setHex(0xfff8dd);
+      haloMat.opacity = 0.4;
+      rimM.intensity = 8;
+      rimM.color.setHex(0xffaacc);
+      rimL.intensity = 6;
+      rimL.color.setHex(0x88cc66);
+      pMat.color.setHex(0x8ecfff);
+      pMat.size = 0.07;
+      for (const pl of litLights) {
+        pl.color.setHex(0x88ccff);
+        pl.intensity = 0.6;
+      }
+      (baseMesh.material as THREE.MeshStandardMaterial).color.setHex(0x3a5a32);
+      for (let i = 0; i < tiles.length; i++) {
+        const t = tiles[i];
+        const even = (t.userData.gx + t.userData.gz) % 2 === 0;
+        (t.material as THREE.MeshStandardMaterial).color.setHex(
+          even ? dayTileColors[0] : dayTileColors[1]
+        );
+      }
+    } else {
+      scene.background = new THREE.Color(0x0a0c13);
+      scene.fog = new THREE.Fog(0x0a0c13, 16, 38);
+      key.color.setHex(0xffe8c2);
+      key.intensity = 3.0;
+      hemi.color.setHex(0x6a7cff);
+      hemi.groundColor.setHex(0x2a1d24);
+      hemi.intensity = 0.55;
+      ambient.color.setHex(0x36406a);
+      ambient.intensity = 0.35;
+      (orbCore.material as THREE.MeshStandardMaterial).emissive.setHex(0xfff2d6);
+      (orbCore.material as THREE.MeshStandardMaterial).emissiveIntensity = 4.2;
+      haloMat.color.setHex(0xffecc0);
+      haloMat.opacity = 0.62;
+      rimM.intensity = 26;
+      rimM.color.setHex(0xff2fa0);
+      rimL.intensity = 18;
+      rimL.color.setHex(0xb6ff3f);
+      pMat.color.setHex(0xd4ffae);
+      pMat.size = 0.1;
+      for (const pl of litLights) {
+        pl.color.setHex(0xc8ff9a);
+        pl.intensity = 1.3;
+      }
+      (baseMesh.material as THREE.MeshStandardMaterial).color.setHex(0x121a26);
+      for (let i = 0; i < tiles.length; i++) {
+        const t = tiles[i];
+        const even = (t.userData.gx + t.userData.gz) % 2 === 0;
+        (t.material as THREE.MeshStandardMaterial).color.setHex(
+          even ? nightTileColors[0] : nightTileColors[1]
+        );
+      }
+    }
+  };
+  window.addEventListener("garden-daytime-changed", onDaytimeChanged);
+
   // --- Settings sync ---
   const onSettingsChanged = (e: Event) => {
     const s = (e as CustomEvent<GardenSettings>).detail;
@@ -690,6 +873,7 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[]) {
     cancelAnimationFrame(animFrameId);
     resizeObs.disconnect();
     window.removeEventListener("garden-settings-changed", onSettingsChanged);
+    window.removeEventListener("garden-daytime-changed", onDaytimeChanged);
     canvas.removeEventListener("pointerdown", onPointerDown);
     canvas.removeEventListener("pointermove", onPointerMove);
     canvas.removeEventListener("pointerup", onPointerUp);
@@ -700,5 +884,5 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[]) {
     rtBrightB.dispose();
   }
 
-  return { cleanup, cam, tiles, renderer };
+  return { cleanup, cam, tiles, renderer, setHoverTile, clearHoverTile };
 }
