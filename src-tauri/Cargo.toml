@@ -22,4 +22,6 @@ sysinfo = "0.35"
 chrono = { version = "0.4", features = ["serde"] }
 tokio = { version = "1", features = ["time"] }
 uuid = { version = "1", features = ["v4"] }
+tauri-plugin-updater = "2.10.1"
+tauri-plugin-process = "2.3.1"
 

@@ -150,6 +150,61 @@
   background: var(--panel);
 }
 
+/* Update banner */
+.update-banner {
+  position: fixed;
+  top: 0;
+  left: 220px;
+  right: 0;
+  background: rgba(182, 255, 63, 0.1);
+  border-bottom: 1px solid var(--accent);
+  padding: 8px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--accent);
+  z-index: 50;
+}
+
+.btn-update {
+  appearance: none;
+  border: 1px solid var(--accent);
+  background: rgba(182, 255, 63, 0.15);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 550;
+  padding: 4px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.btn-update:hover {
+  background: rgba(182, 255, 63, 0.25);
+}
+
+.btn-update:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-update-dismiss {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 16px;
+  cursor: pointer;
+  margin-left: auto;
+  padding: 2px 6px;
+}
+
+.btn-update-dismiss:hover {
+  color: var(--ink);
+}
+
 /* Placeholder */
 .placeholder {
   display: flex;

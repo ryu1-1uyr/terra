@@ -26,6 +26,14 @@
       "tooltip": "terra"
     }
   },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/ryu1-1uyr/terra/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU2MzgyRUY0NkUwN0FENwpSV1RYZXVCRzc0SmpCVFNDa1o1WGtYVGV1c2JML3FjNkhGTHk2TXFmdE81QWVsd05JRTBaVzQ4UQo="
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { TaskList } from "./components/TaskList";
 import { Garden } from "./components/Garden";
 import { Gallery } from "./components/Gallery";
@@ -7,8 +7,47 @@ import "./App.css";
 
 type Page = "home" | "gallery" | "settings";
 
+interface UpdateInfo {
+  version: string;
+  installing: boolean;
+}
+
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>("home");
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+
+  useEffect(() => {
+    checkForUpdate();
+  }, []);
+
+  const checkForUpdate = async () => {
+    try {
+      const { check } = await import("@tauri-apps/plugin-updater");
+      const update = await check();
+      if (update) {
+        setUpdateInfo({ version: update.version, installing: false });
+      }
+    } catch {
+      // Updater not available (e.g. dev mode, no pubkey configured)
+    }
+  };
+
+  const handleUpdate = async () => {
+    try {
+      setUpdateInfo((prev) => (prev ? { ...prev, installing: true } : null));
+      const { check } = await import("@tauri-apps/plugin-updater");
+      const update = await check();
+      if (update) {
+        await update.downloadAndInstall();
+        const { relaunch } = await import("@tauri-apps/plugin-process");
+        await relaunch();
+      }
+    } catch {
+      setUpdateInfo((prev) =>
+        prev ? { ...prev, installing: false } : null
+      );
+    }
+  };
 
   return (
     <div className="app">
@@ -36,6 +75,24 @@ function App() {
         </button>
       </aside>
 
+      {updateInfo && (
+        <div className="update-banner">
+          <span>v{updateInfo.version} が利用可能</span>
+          <button
+            className="btn-update"
+            onClick={handleUpdate}
+            disabled={updateInfo.installing}
+          >
+            {updateInfo.installing ? "更新中..." : "更新する"}
+          </button>
+          <button
+            className="btn-update-dismiss"
+            onClick={() => setUpdateInfo(null)}
+          >
+            ×
+          </button>
+        </div>
+      )}
       <main className="main-content">
         {currentPage === "home" ? (
           <div className="home-layout">
