@@ -4,24 +4,23 @@ use tauri::{
     tray::TrayIconBuilder,
 };
 
+mod commands;
 mod db;
 mod process_monitor;
-
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .plugin(
-            tauri_plugin_sql::Builder::new()
-                .add_migrations("sqlite:hakoniwa.db", db::get_migrations())
-                .build(),
-        )
         .setup(|app| {
+            // Initialize database
+            let app_dir = app
+                .path()
+                .app_data_dir()
+                .map_err(|e| e.to_string())?;
+            let app_db = db::AppDb::new(app_dir).expect("Failed to initialize database");
+            app.manage(app_db);
+
             // System tray
             let show_i = MenuItem::with_id(app, "show", "箱庭を開く", true, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "終了", true, None::<&str>)?;
@@ -57,7 +56,13 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![greet])
+        .invoke_handler(tauri::generate_handler![
+            commands::list_tasks,
+            commands::create_task,
+            commands::delete_task,
+            commands::update_task_processes,
+            commands::get_running_processes,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

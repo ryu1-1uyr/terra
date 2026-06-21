@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { TaskList } from "./components/TaskList";
 import "./App.css";
 
 type Page = "tasks" | "garden" | "gallery";
@@ -42,14 +43,7 @@ function App() {
           </h2>
         </div>
         <div className="page-body">
-          {currentPage === "tasks" && (
-            <div className="placeholder">
-              <div className="placeholder-icon">✅</div>
-              <div className="placeholder-text">
-                タスクを追加して、プロセス監視で達成を記録しよう
-              </div>
-            </div>
-          )}
+          {currentPage === "tasks" && <TaskList />}
           {currentPage === "garden" && (
             <div className="placeholder">
               <div className="placeholder-icon">🌿</div>
