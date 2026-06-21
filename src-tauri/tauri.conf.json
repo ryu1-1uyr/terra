@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "箱庭TODO",
+  "productName": "terra",
   "version": "0.1.0",
   "identifier": "com.ryuichiiha.hakoniwa-todo",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "箱庭TODO",
+        "title": "terra",
         "width": 1280,
         "height": 800
       }
@@ -23,7 +23,7 @@
     "trayIcon": {
       "iconPath": "icons/icon.png",
       "iconAsTemplate": true,
-      "tooltip": "箱庭TODO"
+      "tooltip": "terra"
     }
   },
   "bundle": {

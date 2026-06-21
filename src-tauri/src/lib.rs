@@ -26,14 +26,14 @@ pub fn run() {
             process_monitor::start_polling(app.handle().clone(), app_db);
 
             // System tray
-            let show_i = MenuItem::with_id(app, "show", "箱庭を開く", true, None::<&str>)?;
+            let show_i = MenuItem::with_id(app, "show", "terra を開く", true, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "終了", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
 
             TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
-                .tooltip("箱庭TODO")
+                .tooltip("terra")
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "show" => {
                         if let Some(w) = app.get_webview_window("main") {

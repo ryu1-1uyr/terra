@@ -14,8 +14,7 @@ function App() {
     <div className="app">
       <aside className="sidebar">
         <div className="sidebar-header">
-          <h1>箱庭TODO</h1>
-          <div className="subtitle">タスク × プロセス監視 × 箱庭</div>
+          <h1>terra</h1>
         </div>
         <button
           className={`nav-item ${currentPage === "tasks" ? "active" : ""}`}

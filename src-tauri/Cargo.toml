@@ -1,7 +1,7 @@
 [package]
 name = "hakoniwa-todo"
 version = "0.1.0"
-description = "箱庭TODO - タスク管理 × プロセス監視 × HD-2Dボクセル箱庭"
+description = "terra - process-driven task rewards with an HD-2D voxel garden"
 authors = ["ryuichi iha"]
 edition = "2021"
 
