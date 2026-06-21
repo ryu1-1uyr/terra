@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import * as THREE from "three";
+import { applyEmergence } from "./GardenEmergence";
 import "./Garden.css";
 
 interface GardenObject {
@@ -76,12 +77,10 @@ export function Garden() {
   useEffect(() => {
     loadData();
     let unlisten: Promise<() => void> | null = null;
-    try {
+    if ((window as any).__TAURI_INTERNALS__) {
       unlisten = listen("achievement", () => {
         loadData();
       });
-    } catch {
-      // outside Tauri webview
     }
     return () => {
       unlisten?.then((fn) => fn()).catch(() => {});
@@ -434,6 +433,9 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[]) {
     }
     root.add(objGroup);
   }
+
+  // --- Emergence effects ---
+  applyEmergence(objects, root);
 
   // --- Floating particles (fireflies) ---
   const N = 70;

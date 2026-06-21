@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import * as THREE from "three";
+import { applyEmergence } from "./GardenEmergence";
 import "./Gallery.css";
 
 interface FrozenGarden {
@@ -267,6 +268,8 @@ function initFrozenScene(canvas: HTMLCanvasElement, objects: FrozenObj[]) {
     }
     root.add(g);
   }
+
+  applyEmergence(objects, root);
 
   let yaw = 0.72;
   let pitch = 0.66;

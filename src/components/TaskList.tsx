@@ -28,11 +28,14 @@ export function TaskList() {
 
   useEffect(() => {
     loadTasks();
-    const unlisten = listen("achievement", () => {
-      loadTasks();
-    });
+    let unlisten: Promise<() => void> | null = null;
+    if ((window as any).__TAURI_INTERNALS__) {
+      unlisten = listen("achievement", () => {
+        loadTasks();
+      });
+    }
     return () => {
-      unlisten.then((fn) => fn());
+      unlisten?.then((fn) => fn()).catch(() => {});
     };
   }, [loadTasks]);
 
