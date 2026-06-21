@@ -127,6 +127,29 @@
   padding: 20px 24px;
 }
 
+/* Home split layout */
+.home-layout {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.home-garden {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.home-tasks {
+  height: 260px;
+  min-height: 200px;
+  border-top: 1px solid var(--line);
+  overflow-y: auto;
+  padding: 12px 20px;
+  background: var(--panel);
+}
+
 /* Placeholder */
 .placeholder {
   display: flex;
