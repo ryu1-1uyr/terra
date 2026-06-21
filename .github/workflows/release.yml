@@ -50,6 +50,19 @@ jobs:
         run: |
           rustup target add ${{ matrix.target }}
 
+      - name: Inject version from tag
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "Injecting version: $VERSION"
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            sed -i "s/\"version\": \"0.0.0-dev\"/\"version\": \"$VERSION\"/" src-tauri/tauri.conf.json
+            sed -i "s/^version = \"0.0.0-dev\"/version = \"$VERSION\"/" src-tauri/Cargo.toml
+          else
+            sed -i '' "s/\"version\": \"0.0.0-dev\"/\"version\": \"$VERSION\"/" src-tauri/tauri.conf.json
+            sed -i '' "s/^version = \"0.0.0-dev\"/version = \"$VERSION\"/" src-tauri/Cargo.toml
+          fi
+
       - name: Install frontend dependencies
         run: npm ci
 
