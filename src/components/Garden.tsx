@@ -59,6 +59,12 @@ export function Garden() {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [placedObjects, setPlacedObjects] = useState<PlacedObject[]>([]);
   const [season, setSeason] = useState<SeasonInfo | null>(null);
+  const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
+  const sceneRef = useRef<{
+    cam: THREE.PerspectiveCamera;
+    tiles: THREE.Mesh[];
+    renderer: THREE.WebGLRenderer;
+  } | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -98,46 +104,81 @@ export function Garden() {
     }
 
     const objects = placedToGardenObjects(placedObjects);
-    const { cleanup } = initThreeScene(canvas, objects);
-    cleanupRef.current = cleanup;
+    const result = initThreeScene(canvas, objects);
+    cleanupRef.current = result.cleanup;
+    sceneRef.current = {
+      cam: result.cam,
+      tiles: result.tiles,
+      renderer: result.renderer,
+    };
 
     return () => {
-      cleanup();
+      result.cleanup();
       cleanupRef.current = null;
+      sceneRef.current = null;
     };
   }, [placedObjects]);
 
   const unplacedItems = inventory.filter((i) => !i.placed);
 
-  const handlePlace = async (item: InventoryItem) => {
-    const occupied = new Set(
-      placedObjects.map((o) => `${Math.round(o.grid_x)},${Math.round(o.grid_z)}`)
-    );
-    let gx = -1;
-    let gz = -1;
-    for (let x = 0; x < GRID; x++) {
-      for (let z = 0; z < GRID; z++) {
-        if (!occupied.has(`${x},${z}`)) {
-          gx = x;
-          gz = z;
-          break;
-        }
-      }
-      if (gx >= 0) break;
-    }
-    if (gx < 0) return;
+  const pointerDownPos = useRef<{ x: number; y: number } | null>(null);
 
-    try {
-      await invoke("place_item", {
-        inventoryId: item.id,
-        gridX: gx,
-        gridZ: gz,
-      });
-      await loadData();
-    } catch (e) {
-      console.error("Failed to place item:", e);
-    }
-  };
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent<HTMLCanvasElement>) => {
+      pointerDownPos.current = { x: e.clientX, y: e.clientY };
+    },
+    []
+  );
+
+  const handleCanvasClick = useCallback(
+    async (e: React.MouseEvent<HTMLCanvasElement>) => {
+      if (!selectedItem || !sceneRef.current) return;
+
+      if (pointerDownPos.current) {
+        const dx = e.clientX - pointerDownPos.current.x;
+        const dy = e.clientY - pointerDownPos.current.y;
+        if (dx * dx + dy * dy > 25) return;
+      }
+
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const mouse = new THREE.Vector2(
+        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        -((e.clientY - rect.top) / rect.height) * 2 + 1
+      );
+
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(mouse, sceneRef.current.cam);
+      const hits = raycaster.intersectObjects(sceneRef.current.tiles);
+      if (hits.length === 0) return;
+
+      const tile = hits[0].object as THREE.Mesh;
+      const gx = tile.userData.gx as number;
+      const gz = tile.userData.gz as number;
+
+      const occupied = new Set(
+        placedObjects.map(
+          (o) => `${Math.round(o.grid_x)},${Math.round(o.grid_z)}`
+        )
+      );
+      if (occupied.has(`${gx},${gz}`)) return;
+
+      try {
+        await invoke("place_item", {
+          inventoryId: selectedItem.id,
+          gridX: gx,
+          gridZ: gz,
+        });
+        setSelectedItem(null);
+        await loadData();
+      } catch (e) {
+        console.error("Failed to place item:", e);
+      }
+    },
+    [selectedItem, placedObjects, loadData]
+  );
 
   const handleFreeze = async () => {
     if (!confirm("この箱庭を凍結してギャラリーに保存し、更地から再スタートする？")) return;
@@ -163,7 +204,12 @@ export function Garden() {
 
   return (
     <div className="garden-container">
-      <canvas ref={canvasRef} className="garden-canvas" />
+      <canvas
+        ref={canvasRef}
+        className={`garden-canvas ${selectedItem ? "placing" : ""}`}
+        onPointerDown={handlePointerDown}
+        onClick={handleCanvasClick}
+      />
       {season && (
         <div className="season-badge">
           <span>Season {season.season_number}</span>
@@ -177,19 +223,33 @@ export function Garden() {
       )}
       {unplacedItems.length > 0 && (
         <div className="inventory-panel">
-          <div className="inventory-label">インベントリ</div>
+          <div className="inventory-label">
+            {selectedItem ? "配置先をクリック" : "インベントリ"}
+          </div>
           <div className="inventory-items">
             {unplacedItems.map((item) => (
               <button
                 key={item.id}
-                className="inventory-item"
-                onClick={() => handlePlace(item)}
-                title={`${item.item_type}を配置`}
+                className={`inventory-item ${selectedItem?.id === item.id ? "selected" : ""}`}
+                onClick={() =>
+                  setSelectedItem(
+                    selectedItem?.id === item.id ? null : item
+                  )
+                }
+                title={`${item.item_type}を選択`}
               >
                 {itemEmoji[item.item_type] ?? "📦"}
               </button>
             ))}
           </div>
+          {selectedItem && (
+            <button
+              className="btn-cancel-place"
+              onClick={() => setSelectedItem(null)}
+            >
+              ×
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -280,6 +340,7 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[]) {
   baseMesh.receiveShadow = true;
   root.add(baseMesh);
 
+  const tiles: THREE.Mesh[] = [];
   const tileGeo = new THREE.BoxGeometry(0.96, 0.18, 0.96);
   for (let gx = 0; gx < GRID; gx++) {
     for (let gy = 0; gy < GRID; gy++) {
@@ -293,7 +354,9 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[]) {
       const [x, z] = gpos(gx, gy);
       t.position.set(x, -0.09, z);
       t.receiveShadow = true;
+      t.userData = { gx, gz: gy };
       root.add(t);
+      tiles.push(t);
     }
   }
 
@@ -622,5 +685,5 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[]) {
     rtBrightB.dispose();
   }
 
-  return { cleanup };
+  return { cleanup, cam, tiles, renderer };
 }
