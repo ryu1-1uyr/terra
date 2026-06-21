@@ -54,6 +54,24 @@
 - shrine+tree → 精霊火（光球浮遊）
 - 孤立した大木 → 神木（鳥居+金光粒）
 
+## インストール
+
+[GitHub Releases](https://github.com/ryu1-1uyr/terra/releases) から最新版をダウンロード。
+
+### Windows
+
+1. `terra_<version>_x64-setup.exe`（インストーラー）または `terra_<version>_x64_en-US.msi` をダウンロード
+2. ダウンロードしたファイルを実行
+3. 「WindowsによってPCが保護されました」が出た場合は「詳細情報」→「実行」をクリック
+4. インストール完了後、スタートメニューから「terra」を起動
+
+### macOS
+
+- Apple Silicon (M1/M2/M3/M4): `terra_<version>_aarch64.dmg` をダウンロード
+- Intel Mac: `terra_<version>_x64.dmg` をダウンロード
+
+ダウンロード後、`.dmg` を開いてアプリケーションフォルダにドラッグ。
+
 ## 技術スタック
 
 | レイヤー | 技術 |
