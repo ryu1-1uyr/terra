@@ -11,6 +11,8 @@ interface Task {
   processes: string[];
   achieved_today: boolean;
   total_achievements: number;
+  daily: boolean;
+  current_streak: number;
 }
 
 interface AchievementRecord {
@@ -110,7 +112,12 @@ export function TaskList() {
                   )}
                 </div>
                 <div className="task-info">
-                  <div className="task-title">{task.title}</div>
+                  <div className="task-title-row">
+                    <span className="task-title">{task.title}</span>
+                    {task.daily && (
+                      <span className="task-badge-daily">DAILY</span>
+                    )}
+                  </div>
                   <div className="task-meta">
                     {task.processes.length > 0 && (
                       <span className="task-processes">
@@ -120,6 +127,11 @@ export function TaskList() {
                     {task.total_achievements > 0 && (
                       <span className="task-streak">
                         {task.total_achievements}日達成
+                      </span>
+                    )}
+                    {task.daily && task.current_streak > 0 && (
+                      <span className="task-streak-fire">
+                        {task.current_streak}日連続
                       </span>
                     )}
                   </div>

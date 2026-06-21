@@ -72,19 +72,20 @@ pub fn check_and_record_achievements(db: &AppDb) -> Vec<AchievementEvent> {
 
     let mut stmt = conn
         .prepare(
-            "SELECT t.id, t.title, tp.process_name
+            "SELECT t.id, t.title, tp.process_name, t.daily
              FROM tasks t
              JOIN task_processes tp ON t.id = tp.task_id
              WHERE t.archived = 0",
         )
         .unwrap();
 
-    let rows: Vec<(String, String, String)> = stmt
+    let rows: Vec<(String, String, String, bool)> = stmt
         .query_map([], |row| {
             Ok((
                 row.get::<_, String>(0)?,
                 row.get::<_, String>(1)?,
                 row.get::<_, String>(2)?,
+                row.get::<_, bool>(3)?,
             ))
         })
         .unwrap()
@@ -94,7 +95,7 @@ pub fn check_and_record_achievements(db: &AppDb) -> Vec<AchievementEvent> {
     let mut events = Vec::new();
     let mut recorded_tasks = std::collections::HashSet::new();
 
-    for (task_id, task_title, process_name) in &rows {
+    for (task_id, task_title, process_name, is_daily) in &rows {
         if recorded_tasks.contains(task_id) {
             continue;
         }
@@ -141,6 +142,13 @@ pub fn check_and_record_achievements(db: &AppDb) -> Vec<AchievementEvent> {
                     achieved_date: today.clone(),
                     reward_type: item_type,
                 });
+
+                if !is_daily {
+                    let _ = conn.execute(
+                        "UPDATE tasks SET archived = 1 WHERE id = ?1",
+                        rusqlite::params![task_id],
+                    );
+                }
             }
             recorded_tasks.insert(task_id.clone());
         }

@@ -101,10 +101,32 @@
   min-width: 0;
 }
 
+.task-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .task-title {
   font-size: 14px;
   font-weight: 550;
   color: var(--ink);
+}
+
+.task-badge-daily {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--accent2);
+  border: 1px solid var(--accent2);
+  border-radius: 4px;
+  padding: 1px 5px;
+  letter-spacing: 0.04em;
+  line-height: 1.3;
+}
+
+.task-streak-fire {
+  color: var(--accent2);
+  font-weight: 600;
 }
 
 .task-meta {

@@ -14,6 +14,7 @@ interface Props {
 
 export function TaskCreateDialog({ onClose, onCreated }: Props) {
   const [title, setTitle] = useState("");
+  const [daily, setDaily] = useState(true);
   const [selectedProcesses, setSelectedProcesses] = useState<string[]>([]);
   const [runningProcesses, setRunningProcesses] = useState<RunningProcess[]>([]);
   const [processFilter, setProcessFilter] = useState("");
@@ -50,6 +51,7 @@ export function TaskCreateDialog({ onClose, onCreated }: Props) {
         input: {
           title: title.trim(),
           processes: selectedProcesses,
+          daily,
         },
       });
       onCreated();
@@ -80,6 +82,20 @@ export function TaskCreateDialog({ onClose, onCreated }: Props) {
             onChange={(e) => setTitle(e.target.value)}
             autoFocus
           />
+
+          <label className="daily-toggle">
+            <input
+              type="checkbox"
+              checked={daily}
+              onChange={(e) => setDaily(e.target.checked)}
+            />
+            <span className="daily-toggle-label">デイリータスク</span>
+            <span className="daily-toggle-hint">
+              {daily
+                ? "毎日リセットされて復活する"
+                : "達成したら自動的にアーカイブされる"}
+            </span>
+          </label>
 
           <label className="field-label">
             監視するプロセス

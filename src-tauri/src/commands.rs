@@ -14,12 +14,15 @@ pub struct Task {
     pub processes: Vec<String>,
     pub achieved_today: bool,
     pub total_achievements: i64,
+    pub daily: bool,
+    pub current_streak: i64,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct CreateTaskInput {
     pub title: String,
     pub processes: Vec<String>,
+    pub daily: bool,
 }
 
 #[tauri::command]
@@ -28,7 +31,7 @@ pub fn list_tasks(db: State<'_, Arc<AppDb>>) -> Result<Vec<Task>, String> {
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
 
     let mut stmt = conn
-        .prepare("SELECT id, title, created_at FROM tasks WHERE archived = 0 ORDER BY created_at DESC")
+        .prepare("SELECT id, title, created_at, daily FROM tasks WHERE archived = 0 ORDER BY created_at DESC")
         .map_err(|e| e.to_string())?;
 
     let rows = stmt
@@ -37,13 +40,14 @@ pub fn list_tasks(db: State<'_, Arc<AppDb>>) -> Result<Vec<Task>, String> {
                 row.get::<_, String>(0)?,
                 row.get::<_, String>(1)?,
                 row.get::<_, String>(2)?,
+                row.get::<_, bool>(3)?,
             ))
         })
         .map_err(|e| e.to_string())?;
 
     let mut tasks = Vec::new();
     for row in rows {
-        let (id, title, created_at) = row.map_err(|e| e.to_string())?;
+        let (id, title, created_at, daily) = row.map_err(|e| e.to_string())?;
 
         let processes: Vec<String> = {
             let mut ps = conn
@@ -74,6 +78,35 @@ pub fn list_tasks(db: State<'_, Arc<AppDb>>) -> Result<Vec<Task>, String> {
             )
             .unwrap_or(0);
 
+        let current_streak: i64 = if daily {
+            let mut dates_stmt = conn
+                .prepare(
+                    "SELECT achieved_date FROM achievements WHERE task_id = ?1 ORDER BY achieved_date DESC",
+                )
+                .unwrap();
+            let dates: Vec<String> = dates_stmt
+                .query_map([&id], |r| r.get(0))
+                .unwrap()
+                .filter_map(|r| r.ok())
+                .collect();
+
+            let mut streak = 0i64;
+            let mut expected = chrono::Local::now().date_naive();
+            for date_str in &dates {
+                if let Ok(d) = chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
+                    if d == expected {
+                        streak += 1;
+                        expected -= chrono::Duration::days(1);
+                    } else if d < expected {
+                        break;
+                    }
+                }
+            }
+            streak
+        } else {
+            0
+        };
+
         tasks.push(Task {
             id,
             title,
@@ -81,6 +114,8 @@ pub fn list_tasks(db: State<'_, Arc<AppDb>>) -> Result<Vec<Task>, String> {
             processes,
             achieved_today,
             total_achievements,
+            daily,
+            current_streak,
         });
     }
 
@@ -96,8 +131,8 @@ pub fn create_task(db: State<'_, Arc<AppDb>>, input: CreateTaskInput) -> Result<
         .to_string();
 
     conn.execute(
-        "INSERT INTO tasks (id, title, created_at) VALUES (?1, ?2, ?3)",
-        rusqlite::params![&id, &input.title, &now],
+        "INSERT INTO tasks (id, title, created_at, daily) VALUES (?1, ?2, ?3, ?4)",
+        rusqlite::params![&id, &input.title, &now, input.daily],
     )
     .map_err(|e| e.to_string())?;
 
@@ -116,6 +151,8 @@ pub fn create_task(db: State<'_, Arc<AppDb>>, input: CreateTaskInput) -> Result<
         processes: input.processes,
         achieved_today: false,
         total_achievements: 0,
+        daily: input.daily,
+        current_streak: 0,
     })
 }
 

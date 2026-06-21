@@ -88,6 +88,17 @@ impl AppDb {
         )
         .map_err(|e| e.to_string())?;
 
+        // Migration: add daily column to tasks
+        let has_daily: bool = conn
+            .prepare("SELECT COUNT(*) FROM pragma_table_info('tasks') WHERE name='daily'")
+            .and_then(|mut s| s.query_row([], |r| r.get::<_, i64>(0)))
+            .unwrap_or(0)
+            > 0;
+        if !has_daily {
+            conn.execute_batch("ALTER TABLE tasks ADD COLUMN daily INTEGER NOT NULL DEFAULT 0;")
+                .map_err(|e| e.to_string())?;
+        }
+
         Ok(())
     }
 }
