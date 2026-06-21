@@ -331,3 +331,135 @@ pub fn get_garden_objects(db: State<'_, Arc<AppDb>>) -> Result<Vec<PlacedObject>
 
     Ok(objects)
 }
+
+// --- Season & Freeze ---
+
+#[derive(Debug, Serialize, Clone)]
+pub struct SeasonInfo {
+    pub season_number: i64,
+    pub season_start: String,
+    pub days_elapsed: i64,
+    pub should_wipe: bool,
+}
+
+#[tauri::command]
+pub fn get_season_info(db: State<'_, Arc<AppDb>>) -> Result<SeasonInfo, String> {
+    let conn = db.conn.lock().unwrap();
+    let (season_number, season_start): (i64, String) = conn
+        .query_row(
+            "SELECT season_number, season_start FROM garden_state WHERE id = 1",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .map_err(|e| e.to_string())?;
+
+    let start_dt = chrono::NaiveDateTime::parse_from_str(&season_start, "%Y-%m-%dT%H:%M:%S")
+        .unwrap_or_else(|_| chrono::Local::now().naive_local());
+    let now_dt = chrono::Local::now().naive_local();
+    let days_elapsed = (now_dt - start_dt).num_days();
+    let should_wipe = days_elapsed >= 90;
+
+    Ok(SeasonInfo {
+        season_number,
+        season_start,
+        days_elapsed,
+        should_wipe,
+    })
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct FrozenGarden {
+    pub id: i64,
+    pub season_number: i64,
+    pub frozen_at: String,
+    pub snapshot_json: String,
+}
+
+#[tauri::command]
+pub fn freeze_and_wipe(db: State<'_, Arc<AppDb>>) -> Result<i64, String> {
+    let conn = db.conn.lock().unwrap();
+    let now = chrono::Local::now()
+        .format("%Y-%m-%dT%H:%M:%S")
+        .to_string();
+
+    let season_number: i64 = conn
+        .query_row(
+            "SELECT season_number FROM garden_state WHERE id = 1",
+            [],
+            |r| r.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT g.id, g.inventory_id, i.item_type, g.grid_x, g.grid_z, g.growth_stage, g.random_seed
+             FROM garden_objects g
+             JOIN inventory i ON g.inventory_id = i.id
+             ORDER BY g.placed_at ASC",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let objects: Vec<PlacedObject> = stmt
+        .query_map([], |row| {
+            Ok(PlacedObject {
+                id: row.get(0)?,
+                inventory_id: row.get(1)?,
+                item_type: row.get(2)?,
+                grid_x: row.get(3)?,
+                grid_z: row.get(4)?,
+                growth_stage: row.get(5)?,
+                random_seed: row.get(6)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    let snapshot = serde_json::to_string(&objects).map_err(|e| e.to_string())?;
+
+    conn.execute(
+        "INSERT INTO frozen_gardens (season_number, frozen_at, snapshot_json) VALUES (?1, ?2, ?3)",
+        rusqlite::params![season_number, &now, &snapshot],
+    )
+    .map_err(|e| e.to_string())?;
+
+    let frozen_id = conn.last_insert_rowid();
+
+    conn.execute("DELETE FROM garden_objects", [])
+        .map_err(|e| e.to_string())?;
+    conn.execute("DELETE FROM inventory", [])
+        .map_err(|e| e.to_string())?;
+    conn.execute("DELETE FROM achievements", [])
+        .map_err(|e| e.to_string())?;
+
+    conn.execute(
+        "UPDATE garden_state SET season_number = season_number + 1, season_start = ?1, last_opened = ?1 WHERE id = 1",
+        [&now],
+    )
+    .map_err(|e| e.to_string())?;
+
+    Ok(frozen_id)
+}
+
+#[tauri::command]
+pub fn list_frozen_gardens(db: State<'_, Arc<AppDb>>) -> Result<Vec<FrozenGarden>, String> {
+    let conn = db.conn.lock().unwrap();
+    let mut stmt = conn
+        .prepare("SELECT id, season_number, frozen_at, snapshot_json FROM frozen_gardens ORDER BY frozen_at DESC")
+        .map_err(|e| e.to_string())?;
+
+    let gardens = stmt
+        .query_map([], |row| {
+            Ok(FrozenGarden {
+                id: row.get(0)?,
+                season_number: row.get(1)?,
+                frozen_at: row.get(2)?,
+                snapshot_json: row.get(3)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(gardens)
+}

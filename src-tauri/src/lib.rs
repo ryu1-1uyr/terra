@@ -70,6 +70,9 @@ pub fn run() {
             commands::place_item,
             commands::get_garden_objects,
             commands::tick_growth,
+            commands::get_season_info,
+            commands::freeze_and_wipe,
+            commands::list_frozen_gardens,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

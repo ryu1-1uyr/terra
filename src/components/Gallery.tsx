@@ -1,0 +1,345 @@
+import { useEffect, useRef, useState, useCallback } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import * as THREE from "three";
+import "./Gallery.css";
+
+interface FrozenGarden {
+  id: number;
+  season_number: number;
+  frozen_at: string;
+  snapshot_json: string;
+}
+
+interface PlacedObject {
+  item_type: string;
+  grid_x: number;
+  grid_z: number;
+  growth_stage: number;
+  random_seed: number;
+}
+
+export function Gallery() {
+  const [gardens, setGardens] = useState<FrozenGarden[]>([]);
+  const [selected, setSelected] = useState<FrozenGarden | null>(null);
+
+  const loadGardens = useCallback(async () => {
+    try {
+      const list = await invoke<FrozenGarden[]>("list_frozen_gardens");
+      setGardens(list);
+    } catch {
+      // Tauri IPC unavailable
+    }
+  }, []);
+
+  useEffect(() => {
+    loadGardens();
+  }, [loadGardens]);
+
+  if (selected) {
+    return (
+      <FrozenViewer
+        garden={selected}
+        onBack={() => setSelected(null)}
+      />
+    );
+  }
+
+  if (gardens.length === 0) {
+    return (
+      <div className="placeholder">
+        <div className="placeholder-icon">🏛️</div>
+        <div className="placeholder-text">
+          凍結された箱庭がここに並ぶよ
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="gallery-grid">
+      {gardens.map((g) => (
+        <button
+          key={g.id}
+          className="gallery-card"
+          onClick={() => setSelected(g)}
+        >
+          <div className="gallery-card-season">Season {g.season_number}</div>
+          <div className="gallery-card-date">
+            {g.frozen_at.split("T")[0]}
+          </div>
+          <div className="gallery-card-count">
+            {JSON.parse(g.snapshot_json).length} objects
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function FrozenViewer({
+  garden,
+  onBack,
+}: {
+  garden: FrozenGarden;
+  onBack: () => void;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const objects: PlacedObject[] = JSON.parse(garden.snapshot_json);
+    const gardenObjects = objects.map((p) => ({
+      type: p.item_type as "house" | "tower" | "tree" | "flower",
+      gx: p.grid_x,
+      gy: p.grid_z,
+      growth: p.growth_stage,
+    }));
+
+    const { cleanup } = initFrozenScene(canvas, gardenObjects);
+    return cleanup;
+  }, [garden]);
+
+  return (
+    <div className="frozen-viewer">
+      <div className="frozen-header">
+        <button className="btn-back" onClick={onBack}>← 戻る</button>
+        <span className="frozen-title">
+          Season {garden.season_number} — {garden.frozen_at.split("T")[0]}
+        </span>
+      </div>
+      <div className="frozen-canvas-wrap">
+        <canvas ref={canvasRef} className="frozen-canvas" />
+      </div>
+    </div>
+  );
+}
+
+const GRID = 8;
+const HALF = (GRID - 1) / 2;
+function gpos(gx: number, gy: number): [number, number] {
+  return [gx - HALF, gy - HALF];
+}
+
+interface FrozenObj {
+  type: "house" | "tower" | "tree" | "flower";
+  gx: number;
+  gy: number;
+  growth: number;
+}
+
+function initFrozenScene(canvas: HTMLCanvasElement, objects: FrozenObj[]) {
+  let running = true;
+  let animFrameId = 0;
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0c13);
+  scene.fog = new THREE.Fog(0x0a0c13, 16, 38);
+
+  const cam = new THREE.PerspectiveCamera(34, 16 / 10, 0.1, 100);
+
+  scene.add(new THREE.HemisphereLight(0x6a7cff, 0x2a1d24, 0.55));
+  scene.add(new THREE.AmbientLight(0x36406a, 0.35));
+
+  const key = new THREE.DirectionalLight(0xffe8c2, 3.0);
+  key.position.set(7, 13, 5);
+  key.castShadow = true;
+  key.shadow.mapSize.set(1024, 1024);
+  key.shadow.camera.near = 1;
+  key.shadow.camera.far = 46;
+  key.shadow.camera.left = -9;
+  key.shadow.camera.right = 9;
+  key.shadow.camera.top = 9;
+  key.shadow.camera.bottom = -9;
+  key.shadow.bias = -0.0005;
+  key.shadow.normalBias = 0.04;
+  key.shadow.radius = 3;
+  scene.add(key);
+
+  const rimM = new THREE.PointLight(0xff2fa0, 26, 26, 2.0);
+  rimM.position.set(9, 4, -7);
+  scene.add(rimM);
+  const rimL = new THREE.PointLight(0xb6ff3f, 18, 26, 2.0);
+  rimL.position.set(-9, 3, 7);
+  scene.add(rimL);
+
+  const root = new THREE.Group();
+  scene.add(root);
+
+  const baseMesh = new THREE.Mesh(
+    new THREE.BoxGeometry(GRID + 0.6, 0.6, GRID + 0.6),
+    new THREE.MeshStandardMaterial({ color: 0x121a26, roughness: 1 })
+  );
+  baseMesh.position.set(0, -0.5, 0);
+  baseMesh.receiveShadow = true;
+  root.add(baseMesh);
+
+  const tileGeo = new THREE.BoxGeometry(0.96, 0.18, 0.96);
+  for (let gx = 0; gx < GRID; gx++) {
+    for (let gy = 0; gy < GRID; gy++) {
+      const even = (gx + gy) % 2 === 0;
+      const t = new THREE.Mesh(
+        tileGeo,
+        new THREE.MeshStandardMaterial({
+          color: even ? 0x273349 : 0x1c2638,
+          roughness: 0.92,
+        })
+      );
+      const [x, z] = gpos(gx, gy);
+      t.position.set(x, -0.09, z);
+      t.receiveShadow = true;
+      root.add(t);
+    }
+  }
+
+  for (const o of objects) {
+    const [px, pz] = gpos(o.gx, o.gy);
+    const s = 1 + (o.growth ?? 0);
+    const g = new THREE.Group();
+    g.position.set(px, 0, pz);
+    g.scale.set(s, s, s);
+
+    if (o.type === "house") {
+      const body = new THREE.Mesh(
+        new THREE.BoxGeometry(0.66, 0.6, 0.66),
+        new THREE.MeshStandardMaterial({ color: 0xe9edf7, roughness: 0.8 })
+      );
+      body.position.set(0, 0.3, 0);
+      body.castShadow = true;
+      g.add(body);
+
+      const roof = new THREE.Mesh(
+        new THREE.ConeGeometry(0.56, 0.44, 4),
+        new THREE.MeshStandardMaterial({ color: 0xff4fa6, roughness: 0.55 })
+      );
+      roof.position.set(0, 0.82, 0);
+      roof.rotation.y = Math.PI / 4;
+      roof.castShadow = true;
+      g.add(roof);
+    } else if (o.type === "tree") {
+      const trunk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.07, 0.09, 0.4),
+        new THREE.MeshStandardMaterial({ color: 0x7a4f33 })
+      );
+      trunk.position.set(0, 0.2, 0);
+      g.add(trunk);
+
+      const foli = new THREE.Mesh(
+        new THREE.IcosahedronGeometry(0.34, 0),
+        new THREE.MeshStandardMaterial({ color: 0x4fc06f, flatShading: true })
+      );
+      foli.position.set(0, 0.64, 0);
+      foli.castShadow = true;
+      g.add(foli);
+    } else if (o.type === "flower") {
+      const colArr = [0xff7ad1, 0xffd24a, 0x7ad1ff, 0xb6ff3f];
+      const col = colArr[(o.gx * 3 + o.gy) % 4];
+      const stem = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.02, 0.02, 0.24),
+        new THREE.MeshStandardMaterial({ color: 0x46b86a })
+      );
+      stem.position.set(0, 0.12, 0);
+      g.add(stem);
+      const head = new THREE.Mesh(
+        new THREE.IcosahedronGeometry(0.13, 0),
+        new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.5, flatShading: true })
+      );
+      head.position.set(0, 0.3, 0);
+      g.add(head);
+    } else if (o.type === "tower") {
+      const h = 3 * 0.62;
+      const tb = new THREE.Mesh(
+        new THREE.BoxGeometry(0.6, h, 0.6),
+        new THREE.MeshStandardMaterial({ color: 0x9aaccd, roughness: 0.32 })
+      );
+      tb.position.set(0, h / 2, 0);
+      tb.castShadow = true;
+      g.add(tb);
+    }
+    root.add(g);
+  }
+
+  let yaw = 0.72;
+  let pitch = 0.66;
+  let dist = 15;
+  let dragging = false;
+  let lx = 0;
+  let ly = 0;
+
+  function updateCam() {
+    cam.position.set(
+      Math.sin(yaw) * Math.cos(pitch) * dist,
+      Math.sin(pitch) * dist,
+      Math.cos(yaw) * Math.cos(pitch) * dist
+    );
+    cam.lookAt(0, 1.0, 0);
+  }
+  updateCam();
+
+  const onPointerDown = (e: PointerEvent) => {
+    dragging = true;
+    lx = e.clientX;
+    ly = e.clientY;
+    canvas.setPointerCapture(e.pointerId);
+  };
+  const onPointerMove = (e: PointerEvent) => {
+    if (!dragging) return;
+    yaw -= (e.clientX - lx) * 0.008;
+    pitch = Math.max(0.16, Math.min(1.45, pitch + (e.clientY - ly) * 0.006));
+    lx = e.clientX;
+    ly = e.clientY;
+    updateCam();
+  };
+  const onPointerUp = () => { dragging = false; };
+  const onWheel = (e: WheelEvent) => {
+    e.preventDefault();
+    dist = Math.max(8, Math.min(24, dist * (e.deltaY < 0 ? 0.93 : 1.08)));
+    updateCam();
+  };
+
+  canvas.addEventListener("pointerdown", onPointerDown);
+  canvas.addEventListener("pointermove", onPointerMove);
+  canvas.addEventListener("pointerup", onPointerUp);
+  canvas.addEventListener("wheel", onWheel, { passive: false });
+
+  function resize() {
+    const rect = canvas.parentElement?.getBoundingClientRect();
+    if (!rect) return;
+    renderer.setSize(Math.max(2, rect.width), Math.max(2, rect.height), false);
+    cam.aspect = rect.width / rect.height;
+    cam.updateProjectionMatrix();
+  }
+
+  const resizeObs = new ResizeObserver(resize);
+  resizeObs.observe(canvas.parentElement!);
+  resize();
+
+  function loop() {
+    if (!running) return;
+    renderer.render(scene, cam);
+    animFrameId = requestAnimationFrame(loop);
+  }
+  loop();
+
+  function cleanup() {
+    running = false;
+    cancelAnimationFrame(animFrameId);
+    resizeObs.disconnect();
+    canvas.removeEventListener("pointerdown", onPointerDown);
+    canvas.removeEventListener("pointermove", onPointerMove);
+    canvas.removeEventListener("pointerup", onPointerUp);
+    canvas.removeEventListener("wheel", onWheel);
+    renderer.dispose();
+  }
+
+  return { cleanup };
+}

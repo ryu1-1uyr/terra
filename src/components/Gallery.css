@@ -1,0 +1,91 @@
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  padding: 8px 0;
+}
+
+.gallery-card {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: rgba(182, 255, 63, 0.03);
+  border-radius: 12px;
+  padding: 20px 16px;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: all 0.15s;
+}
+
+.gallery-card:hover {
+  border-color: var(--accent);
+  background: rgba(182, 255, 63, 0.08);
+}
+
+.gallery-card-season {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.gallery-card-date {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.gallery-card-count {
+  font-size: 11px;
+  color: var(--muted);
+  opacity: 0.7;
+}
+
+.frozen-viewer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.frozen-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+}
+
+.btn-back {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-back:hover {
+  color: var(--fg);
+  border-color: var(--accent);
+}
+
+.frozen-title {
+  font-size: 14px;
+  font-weight: 550;
+  color: var(--accent);
+}
+
+.frozen-canvas-wrap {
+  flex: 1;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #0a0c13;
+}
+
+.frozen-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}

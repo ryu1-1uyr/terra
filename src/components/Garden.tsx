@@ -44,21 +44,30 @@ function placedToGardenObjects(placed: PlacedObject[]): GardenObject[] {
   }));
 }
 
+interface SeasonInfo {
+  season_number: number;
+  days_elapsed: number;
+  should_wipe: boolean;
+}
+
 export function Garden() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [placedObjects, setPlacedObjects] = useState<PlacedObject[]>([]);
+  const [season, setSeason] = useState<SeasonInfo | null>(null);
 
   const loadData = useCallback(async () => {
     try {
       await invoke("tick_growth");
-      const [inv, objs] = await Promise.all([
+      const [inv, objs, seasonInfo] = await Promise.all([
         invoke<InventoryItem[]>("get_inventory"),
         invoke<PlacedObject[]>("get_garden_objects"),
+        invoke<SeasonInfo>("get_season_info"),
       ]);
       setInventory(inv);
       setPlacedObjects(objs);
+      setSeason(seasonInfo);
     } catch {
       // Tauri IPC unavailable (e.g. opened in browser)
     }
@@ -129,6 +138,16 @@ export function Garden() {
     }
   };
 
+  const handleFreeze = async () => {
+    if (!confirm("この箱庭を凍結してギャラリーに保存し、更地から再スタートする？")) return;
+    try {
+      await invoke("freeze_and_wipe");
+      await loadData();
+    } catch (e) {
+      console.error("Failed to freeze:", e);
+    }
+  };
+
   const itemEmoji: Record<string, string> = {
     house: "🏠",
     tree: "🌳",
@@ -139,6 +158,17 @@ export function Garden() {
   return (
     <div className="garden-container">
       <canvas ref={canvasRef} className="garden-canvas" />
+      {season && (
+        <div className="season-badge">
+          <span>Season {season.season_number}</span>
+          <span className="season-days">{season.days_elapsed}日目</span>
+          {season.should_wipe && (
+            <button className="btn-freeze" onClick={handleFreeze}>
+              凍結する
+            </button>
+          )}
+        </div>
+      )}
       {unplacedItems.length > 0 && (
         <div className="inventory-panel">
           <div className="inventory-label">インベントリ</div>
