@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { TaskCreateDialog } from "./TaskCreateDialog";
+import { TaskEditDialog } from "./TaskEditDialog";
 import "./TaskList.css";
 
 interface Task {
@@ -36,6 +37,7 @@ export function TaskList() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [achievements, setAchievements] = useState<AchievementRecord[]>([]);
   const [showCreate, setShowCreate] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [showLog, setShowLog] = useState(false);
 
   const loadTasks = useCallback(async () => {
@@ -138,6 +140,13 @@ export function TaskList() {
                 </div>
                 <button
                   className="btn-icon"
+                  onClick={() => setEditingTask(task)}
+                  title="編集"
+                >
+                  ✎
+                </button>
+                <button
+                  className="btn-icon"
                   onClick={() => handleDelete(task.id, task.title)}
                   title="削除"
                 >
@@ -182,6 +191,19 @@ export function TaskList() {
           onClose={() => setShowCreate(false)}
           onCreated={() => {
             setShowCreate(false);
+            loadTasks();
+          }}
+        />
+      )}
+
+      {editingTask && (
+        <TaskEditDialog
+          taskId={editingTask.id}
+          initialTitle={editingTask.title}
+          initialProcesses={editingTask.processes}
+          onClose={() => setEditingTask(null)}
+          onUpdated={() => {
+            setEditingTask(null);
             loadTasks();
           }}
         />

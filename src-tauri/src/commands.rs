@@ -171,6 +171,43 @@ pub fn delete_task(db: State<'_, Arc<AppDb>>, task_id: String) -> Result<(), Str
     Ok(())
 }
 
+#[derive(Debug, Deserialize)]
+pub struct UpdateTaskInput {
+    pub title: String,
+    pub processes: Vec<String>,
+}
+
+#[tauri::command]
+pub fn update_task(
+    db: State<'_, Arc<AppDb>>,
+    task_id: String,
+    input: UpdateTaskInput,
+) -> Result<(), String> {
+    let conn = db.conn.lock().unwrap();
+
+    conn.execute(
+        "UPDATE tasks SET title = ?1 WHERE id = ?2",
+        rusqlite::params![&input.title, &task_id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    conn.execute(
+        "DELETE FROM task_processes WHERE task_id = ?1",
+        [&task_id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    for process in &input.processes {
+        conn.execute(
+            "INSERT INTO task_processes (task_id, process_name) VALUES (?1, ?2)",
+            rusqlite::params![&task_id, process],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+
 #[tauri::command]
 pub fn update_task_processes(
     db: State<'_, Arc<AppDb>>,

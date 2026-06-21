@@ -64,6 +64,7 @@ pub fn run() {
             commands::list_tasks,
             commands::create_task,
             commands::delete_task,
+            commands::update_task,
             commands::update_task_processes,
             commands::get_running_processes,
             commands::get_inventory,
