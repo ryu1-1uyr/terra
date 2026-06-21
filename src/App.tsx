@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { TaskList } from "./components/TaskList";
+import { Garden } from "./components/Garden";
 import "./App.css";
 
 type Page = "tasks" | "garden" | "gallery";
@@ -44,14 +45,7 @@ function App() {
         </div>
         <div className="page-body">
           {currentPage === "tasks" && <TaskList />}
-          {currentPage === "garden" && (
-            <div className="placeholder">
-              <div className="placeholder-icon">🌿</div>
-              <div className="placeholder-text">
-                タスクを達成すると箱庭が育っていくよ
-              </div>
-            </div>
-          )}
+          {currentPage === "garden" && <Garden />}
           {currentPage === "gallery" && (
             <div className="placeholder">
               <div className="placeholder-icon">🏛️</div>
