@@ -93,4 +93,4 @@ npm run tauri build
 
 ## ライセンス
 
-Private
+[terra Custom License](LICENSE) - 利用・改変可、再配布禁止。詳細は LICENSE ファイルを参照。
