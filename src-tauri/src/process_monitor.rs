@@ -109,9 +109,24 @@ pub fn check_and_record_achievements(db: &AppDb) -> Vec<AchievementEvent> {
                 .unwrap_or(0);
 
             if already == 0 {
+                let duration: Option<i64> = sys.processes().values()
+                    .find(|p| p.name().to_string_lossy().to_lowercase() == process_name.to_lowercase())
+                    .and_then(|p| {
+                        let start = p.start_time();
+                        if start > 0 {
+                            let now_ts = std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .unwrap()
+                                .as_secs();
+                            Some((now_ts - start) as i64)
+                        } else {
+                            None
+                        }
+                    });
+
                 let _ = conn.execute(
-                    "INSERT INTO achievements (task_id, achieved_date, detected_at) VALUES (?1, ?2, ?3)",
-                    rusqlite::params![task_id, &today, &now],
+                    "INSERT INTO achievements (task_id, achieved_date, detected_at, duration_secs) VALUES (?1, ?2, ?3, ?4)",
+                    rusqlite::params![task_id, &today, &now, duration],
                 );
 
                 let item_type = random_reward_type();

@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import * as THREE from "three";
 import { applyEmergence } from "./GardenEmergence";
 import { createObjectMesh, type ObjectType } from "./GardenObjects";
+import { loadGardenSettings, type GardenSettings } from "./Settings";
 import "./Garden.css";
 
 interface GardenObject {
@@ -416,19 +417,20 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[]) {
       }`,
   });
 
+  const gs = loadGardenSettings();
   const compMat = new THREE.ShaderMaterial({
     uniforms: {
       tDiffuse: { value: null },
       tBloom: { value: null },
       res: { value: new THREE.Vector2(2, 2) },
-      bloomStrength: { value: 0.9 },
+      bloomStrength: { value: gs.bloomStrength },
       focus: { value: 0.5 },
       tiltRange: { value: 0.34 },
-      tiltStrength: { value: 1.0 },
-      vignette: { value: 0.5 },
-      enableTilt: { value: 1.0 },
-      enableBloom: { value: 1.0 },
-      enableGrade: { value: 1.0 },
+      tiltStrength: { value: gs.tiltStrength },
+      vignette: { value: gs.vignette },
+      enableTilt: { value: gs.enableTilt ? 1.0 : 0.0 },
+      enableBloom: { value: gs.enableBloom ? 1.0 : 0.0 },
+      enableGrade: { value: gs.enableGrade ? 1.0 : 0.0 },
       time: { value: 0 },
     },
     vertexShader: VERT,
@@ -592,11 +594,24 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[]) {
 
   loop();
 
+  // --- Settings sync ---
+  const onSettingsChanged = (e: Event) => {
+    const s = (e as CustomEvent<GardenSettings>).detail;
+    compMat.uniforms.enableTilt.value = s.enableTilt ? 1.0 : 0.0;
+    compMat.uniforms.enableBloom.value = s.enableBloom ? 1.0 : 0.0;
+    compMat.uniforms.enableGrade.value = s.enableGrade ? 1.0 : 0.0;
+    compMat.uniforms.bloomStrength.value = s.bloomStrength;
+    compMat.uniforms.tiltStrength.value = s.tiltStrength;
+    compMat.uniforms.vignette.value = s.vignette;
+  };
+  window.addEventListener("garden-settings-changed", onSettingsChanged);
+
   // --- Cleanup ---
   function cleanup() {
     running = false;
     cancelAnimationFrame(animFrameId);
     resizeObs.disconnect();
+    window.removeEventListener("garden-settings-changed", onSettingsChanged);
     canvas.removeEventListener("pointerdown", onPointerDown);
     canvas.removeEventListener("pointermove", onPointerMove);
     canvas.removeEventListener("pointerup", onPointerUp);

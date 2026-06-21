@@ -163,6 +163,47 @@ pub fn get_running_processes() -> Vec<process_monitor::RunningProcess> {
     process_monitor::list_running_processes()
 }
 
+#[derive(Debug, Serialize, Clone)]
+pub struct AchievementRecord {
+    pub id: i64,
+    pub task_id: String,
+    pub task_title: String,
+    pub achieved_date: String,
+    pub detected_at: String,
+    pub duration_secs: Option<i64>,
+}
+
+#[tauri::command]
+pub fn get_achievements(db: State<'_, Arc<AppDb>>) -> Result<Vec<AchievementRecord>, String> {
+    let conn = db.conn.lock().unwrap();
+    let mut stmt = conn
+        .prepare(
+            "SELECT a.id, a.task_id, t.title, a.achieved_date, a.detected_at, a.duration_secs
+             FROM achievements a
+             JOIN tasks t ON a.task_id = t.id
+             ORDER BY a.achieved_date DESC, a.detected_at DESC
+             LIMIT 100",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let records = stmt
+        .query_map([], |row| {
+            Ok(AchievementRecord {
+                id: row.get(0)?,
+                task_id: row.get(1)?,
+                task_title: row.get(2)?,
+                achieved_date: row.get(3)?,
+                detected_at: row.get(4)?,
+                duration_secs: row.get(5)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(records)
+}
+
 // --- Inventory & Garden ---
 
 #[derive(Debug, Serialize, Clone)]
@@ -282,12 +323,12 @@ pub fn tick_growth(db: State<'_, Arc<AppDb>>) -> Result<f64, String> {
     let elapsed_hours = (now_dt - last_dt).num_seconds() as f64 / 3600.0;
 
     if elapsed_hours > 0.001 {
-        let growth_per_hour = 0.04;
-        let delta = elapsed_hours * growth_per_hour;
-
+        let base_rate = 0.04;
+        // Per-object growth with variance based on random_seed (±40%)
+        // Biased slightly high so average is ~1.08x base ("上振れ")
         conn.execute(
-            "UPDATE garden_objects SET growth_stage = growth_stage + ?1",
-            rusqlite::params![delta],
+            "UPDATE garden_objects SET growth_stage = growth_stage + ?1 * (0.88 + random_seed * 0.4)",
+            rusqlite::params![elapsed_hours * base_rate],
         )
         .map_err(|e| e.to_string())?;
     }

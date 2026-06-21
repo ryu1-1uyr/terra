@@ -73,6 +73,7 @@ pub fn run() {
             commands::get_season_info,
             commands::freeze_and_wipe,
             commands::list_frozen_gardens,
+            commands::get_achievements,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

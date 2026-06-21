@@ -13,9 +13,28 @@ interface Task {
   total_achievements: number;
 }
 
+interface AchievementRecord {
+  id: number;
+  task_id: string;
+  task_title: string;
+  achieved_date: string;
+  detected_at: string;
+  duration_secs: number | null;
+}
+
+function formatDuration(secs: number): string {
+  if (secs < 60) return `${secs}秒`;
+  if (secs < 3600) return `${Math.floor(secs / 60)}分`;
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  return m > 0 ? `${h}時間${m}分` : `${h}時間`;
+}
+
 export function TaskList() {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [achievements, setAchievements] = useState<AchievementRecord[]>([]);
   const [showCreate, setShowCreate] = useState(false);
+  const [showLog, setShowLog] = useState(false);
 
   const loadTasks = useCallback(async () => {
     try {
@@ -26,18 +45,29 @@ export function TaskList() {
     }
   }, []);
 
+  const loadAchievements = useCallback(async () => {
+    try {
+      const result = await invoke<AchievementRecord[]>("get_achievements");
+      setAchievements(result);
+    } catch {
+      // Tauri IPC unavailable
+    }
+  }, []);
+
   useEffect(() => {
     loadTasks();
+    loadAchievements();
     let unlisten: Promise<() => void> | null = null;
     if ((window as any).__TAURI_INTERNALS__) {
       unlisten = listen("achievement", () => {
         loadTasks();
+        loadAchievements();
       });
     }
     return () => {
       unlisten?.then((fn) => fn()).catch(() => {});
     };
-  }, [loadTasks]);
+  }, [loadTasks, loadAchievements]);
 
   const handleDelete = async (taskId: string, title: string) => {
     if (!confirm(`「${title}」を削除する？`)) return;
@@ -106,6 +136,34 @@ export function TaskList() {
           ))}
         </div>
       )}
+
+      <div className="achievement-log-section">
+        <button
+          className="btn-toggle-log"
+          onClick={() => setShowLog(!showLog)}
+        >
+          {showLog ? "▼" : "▶"} 達成ログ ({achievements.length})
+        </button>
+        {showLog && (
+          <div className="achievement-log">
+            {achievements.length === 0 ? (
+              <div className="log-empty">まだ達成記録がないよ</div>
+            ) : (
+              achievements.map((a) => (
+                <div key={a.id} className="log-entry">
+                  <span className="log-date">{a.achieved_date}</span>
+                  <span className="log-title">{a.task_title}</span>
+                  {a.duration_secs != null && (
+                    <span className="log-duration">
+                      {formatDuration(a.duration_secs)}
+                    </span>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
 
       {showCreate && (
         <TaskCreateDialog
