@@ -2,7 +2,7 @@
 name = "hakoniwa-todo"
 version = "0.1.0"
 description = "terra - process-driven task rewards with an HD-2D voxel garden"
-authors = ["ryuichi iha"]
+authors = []
 edition = "2021"
 
 [lib]
