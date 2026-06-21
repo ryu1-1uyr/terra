@@ -69,6 +69,7 @@ pub fn run() {
             commands::get_inventory,
             commands::place_item,
             commands::get_garden_objects,
+            commands::tick_growth,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

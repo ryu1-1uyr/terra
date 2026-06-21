@@ -262,6 +262,46 @@ pub fn place_item(
 }
 
 #[tauri::command]
+pub fn tick_growth(db: State<'_, Arc<AppDb>>) -> Result<f64, String> {
+    let conn = db.conn.lock().unwrap();
+    let now = chrono::Local::now()
+        .format("%Y-%m-%dT%H:%M:%S")
+        .to_string();
+
+    let last_opened: String = conn
+        .query_row(
+            "SELECT last_opened FROM garden_state WHERE id = 1",
+            [],
+            |r| r.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+
+    let last_dt = chrono::NaiveDateTime::parse_from_str(&last_opened, "%Y-%m-%dT%H:%M:%S")
+        .unwrap_or_else(|_| chrono::Local::now().naive_local());
+    let now_dt = chrono::Local::now().naive_local();
+    let elapsed_hours = (now_dt - last_dt).num_seconds() as f64 / 3600.0;
+
+    if elapsed_hours > 0.001 {
+        let growth_per_hour = 0.04;
+        let delta = elapsed_hours * growth_per_hour;
+
+        conn.execute(
+            "UPDATE garden_objects SET growth_stage = growth_stage + ?1",
+            rusqlite::params![delta],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    conn.execute(
+        "UPDATE garden_state SET last_opened = ?1 WHERE id = 1",
+        [&now],
+    )
+    .map_err(|e| e.to_string())?;
+
+    Ok(elapsed_hours)
+}
+
+#[tauri::command]
 pub fn get_garden_objects(db: State<'_, Arc<AppDb>>) -> Result<Vec<PlacedObject>, String> {
     let conn = db.conn.lock().unwrap();
     let mut stmt = conn

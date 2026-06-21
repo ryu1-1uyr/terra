@@ -8,7 +8,7 @@ interface GardenObject {
   type: "house" | "tower" | "tree" | "flower";
   gx: number;
   gy: number;
-  h?: number;
+  growth: number;
 }
 
 interface PlacedObject {
@@ -40,6 +40,7 @@ function placedToGardenObjects(placed: PlacedObject[]): GardenObject[] {
     type: p.item_type as GardenObject["type"],
     gx: p.grid_x,
     gy: p.grid_z,
+    growth: p.growth_stage,
   }));
 }
 
@@ -51,6 +52,7 @@ export function Garden() {
 
   const loadData = useCallback(async () => {
     try {
+      await invoke("tick_growth");
       const [inv, objs] = await Promise.all([
         invoke<InventoryItem[]>("get_inventory"),
         invoke<PlacedObject[]>("get_garden_objects"),
@@ -264,25 +266,29 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[]) {
 
   for (const o of sorted) {
     const [px, pz] = gpos(o.gx, o.gy);
+    const s = 1 + (o.growth ?? 0);
+    const objGroup = new THREE.Group();
+    objGroup.position.set(px, 0, pz);
+    objGroup.scale.set(s, s, s);
 
     if (o.type === "house") {
       const body = new THREE.Mesh(
         new THREE.BoxGeometry(0.66, 0.6, 0.66),
         new THREE.MeshStandardMaterial({ color: 0xe9edf7, roughness: 0.8, metalness: 0.02 })
       );
-      body.position.set(px, 0.3, pz);
+      body.position.set(0, 0.3, 0);
       body.castShadow = true;
       body.receiveShadow = true;
-      root.add(body);
+      objGroup.add(body);
 
       const roof = new THREE.Mesh(
         new THREE.ConeGeometry(0.56, 0.44, 4),
         new THREE.MeshStandardMaterial({ color: 0xff4fa6, roughness: 0.55 })
       );
-      roof.position.set(px, 0.6 + 0.22, pz);
+      roof.position.set(0, 0.6 + 0.22, 0);
       roof.rotation.y = Math.PI / 4;
       roof.castShadow = true;
-      root.add(roof);
+      objGroup.add(roof);
 
       const win = new THREE.Mesh(
         new THREE.PlaneGeometry(0.16, 0.18),
@@ -293,18 +299,18 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[]) {
           side: THREE.DoubleSide,
         })
       );
-      win.position.set(px, 0.3, pz + 0.331);
-      root.add(win);
+      win.position.set(0, 0.3, 0.331);
+      objGroup.add(win);
     } else if (o.type === "tower") {
-      const h = (o.h ?? 3) * 0.62;
+      const h = 3 * 0.62;
       const towerBody = new THREE.Mesh(
         new THREE.BoxGeometry(0.6, h, 0.6),
         new THREE.MeshStandardMaterial({ color: 0x9aaccd, roughness: 0.32, metalness: 0.02 })
       );
-      towerBody.position.set(px, h / 2, pz);
+      towerBody.position.set(0, h / 2, 0);
       towerBody.castShadow = true;
       towerBody.receiveShadow = true;
-      root.add(towerBody);
+      objGroup.add(towerBody);
 
       const winMat = new THREE.MeshStandardMaterial({
         color: 0x0,
@@ -313,23 +319,23 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[]) {
         side: THREE.DoubleSide,
       });
       for (let fy = 0; fy < 6; fy++) {
-        for (let s = 0; s < 4; s++) {
+        for (let si = 0; si < 4; si++) {
           if (Math.random() < 0.5) continue;
           const win = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.12), winMat);
           const yy = 0.25 + (fy * (h - 0.4)) / 6;
           const off = 0.301;
-          if (s === 0) win.position.set(px - 0.15 + Math.random() * 0.3, yy, pz + off);
-          else if (s === 1) {
-            win.position.set(px - 0.15 + Math.random() * 0.3, yy, pz - off);
+          if (si === 0) win.position.set(-0.15 + Math.random() * 0.3, yy, off);
+          else if (si === 1) {
+            win.position.set(-0.15 + Math.random() * 0.3, yy, -off);
             win.rotation.y = Math.PI;
-          } else if (s === 2) {
-            win.position.set(px + off, yy, pz - 0.15 + Math.random() * 0.3);
+          } else if (si === 2) {
+            win.position.set(off, yy, -0.15 + Math.random() * 0.3);
             win.rotation.y = Math.PI / 2;
           } else {
-            win.position.set(px - off, yy, pz - 0.15 + Math.random() * 0.3);
+            win.position.set(-off, yy, -0.15 + Math.random() * 0.3);
             win.rotation.y = -Math.PI / 2;
           }
-          root.add(win);
+          objGroup.add(win);
         }
       }
 
@@ -337,40 +343,40 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[]) {
         new THREE.CylinderGeometry(0.018, 0.018, 0.5),
         new THREE.MeshStandardMaterial({ color: 0xb6ff3f, emissive: 0xb6ff3f, emissiveIntensity: 2 })
       );
-      ant.position.set(px, h + 0.25, pz);
-      root.add(ant);
+      ant.position.set(0, h + 0.25, 0);
+      objGroup.add(ant);
 
       const beacon = new THREE.Mesh(
         new THREE.SphereGeometry(0.05, 12, 12),
         new THREE.MeshStandardMaterial({ color: 0xb6ff3f, emissive: 0xb6ff3f, emissiveIntensity: 3 })
       );
-      beacon.position.set(px, h + 0.52, pz);
-      root.add(beacon);
+      beacon.position.set(0, h + 0.52, 0);
+      objGroup.add(beacon);
     } else if (o.type === "tree") {
       const trunk = new THREE.Mesh(
         new THREE.CylinderGeometry(0.07, 0.09, 0.4),
         new THREE.MeshStandardMaterial({ color: 0x7a4f33, roughness: 0.95 })
       );
-      trunk.position.set(px, 0.2, pz);
+      trunk.position.set(0, 0.2, 0);
       trunk.castShadow = true;
-      root.add(trunk);
+      objGroup.add(trunk);
 
       const foli = new THREE.Mesh(
         new THREE.IcosahedronGeometry(0.34, 0),
         new THREE.MeshStandardMaterial({ color: 0x4fc06f, roughness: 0.85, flatShading: true })
       );
-      foli.position.set(px, 0.64, pz);
+      foli.position.set(0, 0.64, 0);
       foli.castShadow = true;
       foli.receiveShadow = true;
-      root.add(foli);
+      objGroup.add(foli);
 
       const foli2 = new THREE.Mesh(
         new THREE.IcosahedronGeometry(0.22, 0),
         new THREE.MeshStandardMaterial({ color: 0x6ad888, roughness: 0.85, flatShading: true })
       );
-      foli2.position.set(px + 0.1, 0.82, pz - 0.05);
+      foli2.position.set(0.1, 0.82, -0.05);
       foli2.castShadow = true;
-      root.add(foli2);
+      objGroup.add(foli2);
     } else {
       const colArr = [0xff7ad1, 0xffd24a, 0x7ad1ff, 0xb6ff3f];
       const col = colArr[(o.gx * 3 + o.gy) % 4];
@@ -379,9 +385,9 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[]) {
         new THREE.CylinderGeometry(0.02, 0.02, 0.24),
         new THREE.MeshStandardMaterial({ color: 0x46b86a, roughness: 0.9 })
       );
-      stem.position.set(px, 0.12, pz);
+      stem.position.set(0, 0.12, 0);
       stem.castShadow = true;
-      root.add(stem);
+      objGroup.add(stem);
 
       const head = new THREE.Mesh(
         new THREE.IcosahedronGeometry(0.13, 0),
@@ -392,10 +398,11 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[]) {
           flatShading: true,
         })
       );
-      head.position.set(px, 0.3, pz);
+      head.position.set(0, 0.3, 0);
       head.castShadow = true;
-      root.add(head);
+      objGroup.add(head);
     }
+    root.add(objGroup);
   }
 
   // --- Floating particles (fireflies) ---
