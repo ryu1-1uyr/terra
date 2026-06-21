@@ -1,12 +1,12 @@
 [package]
-name = "hakoniwa-todo"
+name = "terra"
 version = "0.1.0"
 description = "terra - process-driven task rewards with an HD-2D voxel garden"
 authors = []
 edition = "2021"
 
 [lib]
-name = "hakoniwa_todo_lib"
+name = "terra_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

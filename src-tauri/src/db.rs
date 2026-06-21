@@ -9,7 +9,7 @@ pub struct AppDb {
 impl AppDb {
     pub fn new(app_dir: PathBuf) -> Result<Self, String> {
         std::fs::create_dir_all(&app_dir).map_err(|e| e.to_string())?;
-        let db_path = app_dir.join("hakoniwa.db");
+        let db_path = app_dir.join("terra.db");
         let conn = Connection::open(&db_path).map_err(|e| e.to_string())?;
         conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;")
             .map_err(|e| e.to_string())?;
