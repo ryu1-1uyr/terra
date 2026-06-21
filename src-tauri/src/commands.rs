@@ -209,30 +209,6 @@ pub fn update_task(
 }
 
 #[tauri::command]
-pub fn update_task_processes(
-    db: State<'_, Arc<AppDb>>,
-    task_id: String,
-    processes: Vec<String>,
-) -> Result<(), String> {
-    let conn = db.conn.lock().unwrap();
-    conn.execute(
-        "DELETE FROM task_processes WHERE task_id = ?1",
-        [&task_id],
-    )
-    .map_err(|e| e.to_string())?;
-
-    for process in &processes {
-        conn.execute(
-            "INSERT INTO task_processes (task_id, process_name) VALUES (?1, ?2)",
-            rusqlite::params![&task_id, process],
-        )
-        .map_err(|e| e.to_string())?;
-    }
-
-    Ok(())
-}
-
-#[tauri::command]
 pub fn get_running_processes() -> Vec<process_monitor::RunningProcess> {
     process_monitor::list_running_processes()
 }
