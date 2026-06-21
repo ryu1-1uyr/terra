@@ -3,10 +3,11 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import * as THREE from "three";
 import { applyEmergence } from "./GardenEmergence";
+import { createObjectMesh, type ObjectType } from "./GardenObjects";
 import "./Garden.css";
 
 interface GardenObject {
-  type: "house" | "tower" | "tree" | "flower";
+  type: ObjectType;
   gx: number;
   gy: number;
   growth: number;
@@ -152,6 +153,11 @@ export function Garden() {
     tree: "🌳",
     flower: "🌸",
     tower: "🏙️",
+    windmill: "🌾",
+    shrine: "⛩️",
+    lamp: "🏮",
+    pond: "💧",
+    statue: "🗿",
   };
 
   return (
@@ -300,136 +306,9 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[]) {
     objGroup.position.set(px, 0, pz);
     objGroup.scale.set(s, s, s);
 
-    if (o.type === "house") {
-      const body = new THREE.Mesh(
-        new THREE.BoxGeometry(0.66, 0.6, 0.66),
-        new THREE.MeshStandardMaterial({ color: 0xe9edf7, roughness: 0.8, metalness: 0.02 })
-      );
-      body.position.set(0, 0.3, 0);
-      body.castShadow = true;
-      body.receiveShadow = true;
-      objGroup.add(body);
-
-      const roof = new THREE.Mesh(
-        new THREE.ConeGeometry(0.56, 0.44, 4),
-        new THREE.MeshStandardMaterial({ color: 0xff4fa6, roughness: 0.55 })
-      );
-      roof.position.set(0, 0.6 + 0.22, 0);
-      roof.rotation.y = Math.PI / 4;
-      roof.castShadow = true;
-      objGroup.add(roof);
-
-      const win = new THREE.Mesh(
-        new THREE.PlaneGeometry(0.16, 0.18),
-        new THREE.MeshStandardMaterial({
-          color: 0x0,
-          emissive: 0xffd96a,
-          emissiveIntensity: 1.4,
-          side: THREE.DoubleSide,
-        })
-      );
-      win.position.set(0, 0.3, 0.331);
-      objGroup.add(win);
-    } else if (o.type === "tower") {
-      const h = 3 * 0.62;
-      const towerBody = new THREE.Mesh(
-        new THREE.BoxGeometry(0.6, h, 0.6),
-        new THREE.MeshStandardMaterial({ color: 0x9aaccd, roughness: 0.32, metalness: 0.02 })
-      );
-      towerBody.position.set(0, h / 2, 0);
-      towerBody.castShadow = true;
-      towerBody.receiveShadow = true;
-      objGroup.add(towerBody);
-
-      const winMat = new THREE.MeshStandardMaterial({
-        color: 0x0,
-        emissive: 0x8fe0ff,
-        emissiveIntensity: 1.1,
-        side: THREE.DoubleSide,
-      });
-      for (let fy = 0; fy < 6; fy++) {
-        for (let si = 0; si < 4; si++) {
-          if (Math.random() < 0.5) continue;
-          const win = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.12), winMat);
-          const yy = 0.25 + (fy * (h - 0.4)) / 6;
-          const off = 0.301;
-          if (si === 0) win.position.set(-0.15 + Math.random() * 0.3, yy, off);
-          else if (si === 1) {
-            win.position.set(-0.15 + Math.random() * 0.3, yy, -off);
-            win.rotation.y = Math.PI;
-          } else if (si === 2) {
-            win.position.set(off, yy, -0.15 + Math.random() * 0.3);
-            win.rotation.y = Math.PI / 2;
-          } else {
-            win.position.set(-off, yy, -0.15 + Math.random() * 0.3);
-            win.rotation.y = -Math.PI / 2;
-          }
-          objGroup.add(win);
-        }
-      }
-
-      const ant = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.018, 0.018, 0.5),
-        new THREE.MeshStandardMaterial({ color: 0xb6ff3f, emissive: 0xb6ff3f, emissiveIntensity: 2 })
-      );
-      ant.position.set(0, h + 0.25, 0);
-      objGroup.add(ant);
-
-      const beacon = new THREE.Mesh(
-        new THREE.SphereGeometry(0.05, 12, 12),
-        new THREE.MeshStandardMaterial({ color: 0xb6ff3f, emissive: 0xb6ff3f, emissiveIntensity: 3 })
-      );
-      beacon.position.set(0, h + 0.52, 0);
-      objGroup.add(beacon);
-    } else if (o.type === "tree") {
-      const trunk = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.07, 0.09, 0.4),
-        new THREE.MeshStandardMaterial({ color: 0x7a4f33, roughness: 0.95 })
-      );
-      trunk.position.set(0, 0.2, 0);
-      trunk.castShadow = true;
-      objGroup.add(trunk);
-
-      const foli = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(0.34, 0),
-        new THREE.MeshStandardMaterial({ color: 0x4fc06f, roughness: 0.85, flatShading: true })
-      );
-      foli.position.set(0, 0.64, 0);
-      foli.castShadow = true;
-      foli.receiveShadow = true;
-      objGroup.add(foli);
-
-      const foli2 = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(0.22, 0),
-        new THREE.MeshStandardMaterial({ color: 0x6ad888, roughness: 0.85, flatShading: true })
-      );
-      foli2.position.set(0.1, 0.82, -0.05);
-      foli2.castShadow = true;
-      objGroup.add(foli2);
-    } else {
-      const colArr = [0xff7ad1, 0xffd24a, 0x7ad1ff, 0xb6ff3f];
-      const col = colArr[(o.gx * 3 + o.gy) % 4];
-
-      const stem = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.02, 0.02, 0.24),
-        new THREE.MeshStandardMaterial({ color: 0x46b86a, roughness: 0.9 })
-      );
-      stem.position.set(0, 0.12, 0);
-      stem.castShadow = true;
-      objGroup.add(stem);
-
-      const head = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(0.13, 0),
-        new THREE.MeshStandardMaterial({
-          color: col,
-          emissive: col,
-          emissiveIntensity: 0.5,
-          flatShading: true,
-        })
-      );
-      head.position.set(0, 0.3, 0);
-      head.castShadow = true;
-      objGroup.add(head);
+    const meshGroup = createObjectMesh(o.type, o.gx, o.gy);
+    for (const child of meshGroup.children) {
+      objGroup.add(child.clone());
     }
     root.add(objGroup);
   }

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import * as THREE from "three";
 import { applyEmergence } from "./GardenEmergence";
+import { createObjectMesh, type ObjectType } from "./GardenObjects";
 import "./Gallery.css";
 
 interface FrozenGarden {
@@ -12,7 +13,7 @@ interface FrozenGarden {
 }
 
 interface PlacedObject {
-  item_type: string;
+  item_type: ObjectType;
   grid_x: number;
   grid_z: number;
   growth_stage: number;
@@ -124,7 +125,7 @@ function gpos(gx: number, gy: number): [number, number] {
 }
 
 interface FrozenObj {
-  type: "house" | "tower" | "tree" | "flower";
+  type: ObjectType;
   gx: number;
   gy: number;
   growth: number;
@@ -209,62 +210,9 @@ function initFrozenScene(canvas: HTMLCanvasElement, objects: FrozenObj[]) {
     g.position.set(px, 0, pz);
     g.scale.set(s, s, s);
 
-    if (o.type === "house") {
-      const body = new THREE.Mesh(
-        new THREE.BoxGeometry(0.66, 0.6, 0.66),
-        new THREE.MeshStandardMaterial({ color: 0xe9edf7, roughness: 0.8 })
-      );
-      body.position.set(0, 0.3, 0);
-      body.castShadow = true;
-      g.add(body);
-
-      const roof = new THREE.Mesh(
-        new THREE.ConeGeometry(0.56, 0.44, 4),
-        new THREE.MeshStandardMaterial({ color: 0xff4fa6, roughness: 0.55 })
-      );
-      roof.position.set(0, 0.82, 0);
-      roof.rotation.y = Math.PI / 4;
-      roof.castShadow = true;
-      g.add(roof);
-    } else if (o.type === "tree") {
-      const trunk = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.07, 0.09, 0.4),
-        new THREE.MeshStandardMaterial({ color: 0x7a4f33 })
-      );
-      trunk.position.set(0, 0.2, 0);
-      g.add(trunk);
-
-      const foli = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(0.34, 0),
-        new THREE.MeshStandardMaterial({ color: 0x4fc06f, flatShading: true })
-      );
-      foli.position.set(0, 0.64, 0);
-      foli.castShadow = true;
-      g.add(foli);
-    } else if (o.type === "flower") {
-      const colArr = [0xff7ad1, 0xffd24a, 0x7ad1ff, 0xb6ff3f];
-      const col = colArr[(o.gx * 3 + o.gy) % 4];
-      const stem = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.02, 0.02, 0.24),
-        new THREE.MeshStandardMaterial({ color: 0x46b86a })
-      );
-      stem.position.set(0, 0.12, 0);
-      g.add(stem);
-      const head = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(0.13, 0),
-        new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.5, flatShading: true })
-      );
-      head.position.set(0, 0.3, 0);
-      g.add(head);
-    } else if (o.type === "tower") {
-      const h = 3 * 0.62;
-      const tb = new THREE.Mesh(
-        new THREE.BoxGeometry(0.6, h, 0.6),
-        new THREE.MeshStandardMaterial({ color: 0x9aaccd, roughness: 0.32 })
-      );
-      tb.position.set(0, h / 2, 0);
-      tb.castShadow = true;
-      g.add(tb);
+    const meshGroup = createObjectMesh(o.type, o.gx, o.gy);
+    for (const child of meshGroup.children) {
+      g.add(child.clone());
     }
     root.add(g);
   }

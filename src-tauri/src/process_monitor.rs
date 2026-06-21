@@ -25,7 +25,11 @@ fn random_reward_type() -> String {
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .subsec_nanos();
-    let types = ["house", "tree", "flower", "flower", "tree"];
+    let types = [
+        "house", "tree", "flower", "flower", "tree",
+        "windmill", "shrine", "lamp", "pond", "statue",
+        "tree", "flower", "house",
+    ];
     types[(nanos as usize) % types.len()].to_string()
 }
 

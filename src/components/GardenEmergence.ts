@@ -1,7 +1,9 @@
 import * as THREE from "three";
 
+import type { ObjectType } from "./GardenObjects";
+
 export interface GridCell {
-  type: "house" | "tower" | "tree" | "flower";
+  type: ObjectType;
   growth: number;
 }
 
@@ -595,8 +597,166 @@ function addPaperLantern(root: THREE.Group, x: number, z: number) {
 
 // ─── Main entry ───
 
+// --- New object emergence rules ---
+
+// Windmill + flower(s) adjacent → golden wheat field beneath
+function ruleWheatField(grid: Grid, root: THREE.Group) {
+  for (let gx = 0; gx < GRID; gx++) {
+    for (let gy = 0; gy < GRID; gy++) {
+      const c = grid[gx][gy];
+      if (!c || c.type !== "windmill") continue;
+      const adj = neighbors(grid, gx, gy);
+      if (!adj.some((n) => n.cell.type === "flower")) continue;
+      const [px, pz] = gpos(gx, gy);
+      const wheat = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.9, 0.9),
+        new THREE.MeshStandardMaterial({
+          color: 0xd4a630,
+          emissive: 0xd4a630,
+          emissiveIntensity: 0.15,
+          transparent: true,
+          opacity: 0.5,
+          side: THREE.DoubleSide,
+        })
+      );
+      wheat.position.set(px, 0.01, pz);
+      wheat.rotation.x = -Math.PI / 2;
+      root.add(wheat);
+      for (let i = 0; i < 8; i++) {
+        const stalk = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.008, 0.008, 0.18),
+          new THREE.MeshStandardMaterial({ color: 0xc8a030 })
+        );
+        const a = (i / 8) * Math.PI * 2;
+        const r = 0.2 + (i % 3) * 0.08;
+        stalk.position.set(px + Math.cos(a) * r, 0.09, pz + Math.sin(a) * r);
+        root.add(stalk);
+      }
+    }
+  }
+}
+
+// Shrine + tree adjacent → spirit orbs float around shrine
+function ruleSpiritOrbs(grid: Grid, root: THREE.Group) {
+  for (let gx = 0; gx < GRID; gx++) {
+    for (let gy = 0; gy < GRID; gy++) {
+      const c = grid[gx][gy];
+      if (!c || c.type !== "shrine") continue;
+      const adj = neighbors(grid, gx, gy, ADJ8);
+      if (!adj.some((n) => n.cell.type === "tree")) continue;
+      const [px, pz] = gpos(gx, gy);
+      const orbMat = new THREE.MeshStandardMaterial({
+        color: 0x88ffcc,
+        emissive: 0x88ffcc,
+        emissiveIntensity: 2.5,
+        transparent: true,
+        opacity: 0.7,
+      });
+      for (let i = 0; i < 5; i++) {
+        const orb = new THREE.Mesh(new THREE.SphereGeometry(0.03, 6, 6), orbMat);
+        const a = (i / 5) * Math.PI * 2;
+        orb.position.set(px + Math.cos(a) * 0.45, 0.5 + i * 0.12, pz + Math.sin(a) * 0.45);
+        root.add(orb);
+      }
+    }
+  }
+}
+
+// Lamp cluster (2+ lamps adjacent) → illuminated walkway (glowing ground strip)
+function ruleLitWalkway(grid: Grid, root: THREE.Group) {
+  const visited = new Set<string>();
+  for (let gx = 0; gx < GRID; gx++) {
+    for (let gy = 0; gy < GRID; gy++) {
+      const c = grid[gx][gy];
+      if (!c || c.type !== "lamp") continue;
+      const key = `${gx},${gy}`;
+      if (visited.has(key)) continue;
+      const adj = neighbors(grid, gx, gy);
+      const lampNeighbors = adj.filter((n) => n.cell.type === "lamp");
+      if (lampNeighbors.length === 0) continue;
+      visited.add(key);
+      for (const n of lampNeighbors) {
+        visited.add(`${n.gx},${n.gy}`);
+        const [px1, pz1] = gpos(gx, gy);
+        const [px2, pz2] = gpos(n.gx, n.gy);
+        const mx = (px1 + px2) / 2;
+        const mz = (pz1 + pz2) / 2;
+        const walkway = new THREE.Mesh(
+          new THREE.PlaneGeometry(0.3, 0.9),
+          new THREE.MeshStandardMaterial({
+            color: 0xffcc66,
+            emissive: 0xffcc66,
+            emissiveIntensity: 0.2,
+            transparent: true,
+            opacity: 0.25,
+            side: THREE.DoubleSide,
+          })
+        );
+        walkway.position.set(mx, 0.005, mz);
+        walkway.rotation.x = -Math.PI / 2;
+        if (gx !== n.gx) walkway.rotation.z = Math.PI / 2;
+        root.add(walkway);
+      }
+    }
+  }
+}
+
+// Pond + statue adjacent → reflection sparkle (glowing dots on pond)
+function ruleReflection(grid: Grid, root: THREE.Group) {
+  for (let gx = 0; gx < GRID; gx++) {
+    for (let gy = 0; gy < GRID; gy++) {
+      const c = grid[gx][gy];
+      if (!c || c.type !== "pond") continue;
+      const adj = neighbors(grid, gx, gy);
+      if (!adj.some((n) => n.cell.type === "statue")) continue;
+      const [px, pz] = gpos(gx, gy);
+      const sparkleMat = new THREE.MeshStandardMaterial({
+        color: 0xffd700,
+        emissive: 0xffd700,
+        emissiveIntensity: 3,
+      });
+      for (let i = 0; i < 6; i++) {
+        const sparkle = new THREE.Mesh(new THREE.SphereGeometry(0.015, 4, 4), sparkleMat);
+        const a = (i / 6) * Math.PI * 2 + 0.3;
+        const r = 0.1 + (i % 2) * 0.1;
+        sparkle.position.set(px + Math.cos(a) * r, 0.045, pz + Math.sin(a) * r);
+        root.add(sparkle);
+      }
+    }
+  }
+}
+
+// Statue alone (no adjacent same type) + high growth → monument aura (ring of light pillars)
+function ruleMonumentAura(grid: Grid, root: THREE.Group) {
+  for (let gx = 0; gx < GRID; gx++) {
+    for (let gy = 0; gy < GRID; gy++) {
+      const c = grid[gx][gy];
+      if (!c || c.type !== "statue" || c.growth < 1.0) continue;
+      const adj = neighbors(grid, gx, gy, ADJ8);
+      if (adj.some((n) => n.cell.type === "statue")) continue;
+      const [px, pz] = gpos(gx, gy);
+      const pillarMat = new THREE.MeshStandardMaterial({
+        color: 0xb6ff3f,
+        emissive: 0xb6ff3f,
+        emissiveIntensity: 1.5,
+        transparent: true,
+        opacity: 0.4,
+      });
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        const pillar = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.015, 0.015, 1.2),
+          pillarMat
+        );
+        pillar.position.set(px + Math.cos(a) * 0.4, 0.6, pz + Math.sin(a) * 0.4);
+        root.add(pillar);
+      }
+    }
+  }
+}
+
 export function applyEmergence(
-  objects: { type: "house" | "tower" | "tree" | "flower"; gx: number; gy: number; growth: number }[],
+  objects: { type: ObjectType; gx: number; gy: number; growth: number }[],
   root: THREE.Group
 ) {
   const grid: Grid = Array.from({ length: GRID }, () =>
@@ -624,4 +784,9 @@ export function applyEmergence(
   ruleTowerGrove(grid, root);
   ruleFlowerClock(grid, root);
   ruleSkybridges(grid, root);
+  ruleWheatField(grid, root);
+  ruleSpiritOrbs(grid, root);
+  ruleLitWalkway(grid, root);
+  ruleReflection(grid, root);
+  ruleMonumentAura(grid, root);
 }
