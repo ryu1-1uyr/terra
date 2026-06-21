@@ -60,6 +60,7 @@ export function Garden() {
   const [placedObjects, setPlacedObjects] = useState<PlacedObject[]>([]);
   const [season, setSeason] = useState<SeasonInfo | null>(null);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
+  const [bonusMessages, setBonusMessages] = useState<string[]>([]);
   const sceneRef = useRef<{
     cam: THREE.PerspectiveCamera;
     tiles: THREE.Mesh[];
@@ -84,6 +85,14 @@ export function Garden() {
 
   useEffect(() => {
     loadData();
+    invoke<string[]>("check_and_grant_bonus")
+      .then((msgs) => {
+        if (msgs.length > 0) {
+          setBonusMessages(msgs);
+          loadData();
+        }
+      })
+      .catch(() => {});
     let unlisten: Promise<() => void> | null = null;
     if ((window as any).__TAURI_INTERNALS__) {
       unlisten = listen("achievement", () => {
@@ -132,7 +141,7 @@ export function Garden() {
 
   const handleCanvasClick = useCallback(
     async (e: React.MouseEvent<HTMLCanvasElement>) => {
-      if (!selectedItem || !sceneRef.current) return;
+      if (!sceneRef.current) return;
 
       if (pointerDownPos.current) {
         const dx = e.clientX - pointerDownPos.current.x;
@@ -158,23 +167,33 @@ export function Garden() {
       const gx = tile.userData.gx as number;
       const gz = tile.userData.gz as number;
 
-      const occupied = new Set(
-        placedObjects.map(
-          (o) => `${Math.round(o.grid_x)},${Math.round(o.grid_z)}`
-        )
+      const placedHere = placedObjects.find(
+        (o) => Math.round(o.grid_x) === gx && Math.round(o.grid_z) === gz
       );
-      if (occupied.has(`${gx},${gz}`)) return;
 
-      try {
-        await invoke("place_item", {
-          inventoryId: selectedItem.id,
-          gridX: gx,
-          gridZ: gz,
-        });
-        setSelectedItem(null);
-        await loadData();
-      } catch (e) {
-        console.error("Failed to place item:", e);
+      if (selectedItem) {
+        if (placedHere) return;
+        try {
+          await invoke("place_item", {
+            inventoryId: selectedItem.id,
+            gridX: gx,
+            gridZ: gz,
+          });
+          setSelectedItem(null);
+          await loadData();
+        } catch (e) {
+          console.error("Failed to place item:", e);
+        }
+      } else if (placedHere) {
+        if (!confirm("このオブジェクトをインベントリに戻す？")) return;
+        try {
+          await invoke("unplace_item", {
+            inventoryId: placedHere.inventory_id,
+          });
+          await loadData();
+        } catch (e) {
+          console.error("Failed to unplace item:", e);
+        }
       }
     },
     [selectedItem, placedObjects, loadData]
@@ -210,6 +229,19 @@ export function Garden() {
         onPointerDown={handlePointerDown}
         onClick={handleCanvasClick}
       />
+      {bonusMessages.length > 0 && (
+        <div className="bonus-toast">
+          {bonusMessages.map((msg, i) => (
+            <div key={i} className="bonus-message">{msg}</div>
+          ))}
+          <button
+            className="bonus-dismiss"
+            onClick={() => setBonusMessages([])}
+          >
+            OK
+          </button>
+        </div>
+      )}
       {season && (
         <div className="season-badge">
           <span>Season {season.season_number}</span>

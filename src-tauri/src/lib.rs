@@ -68,6 +68,8 @@ pub fn run() {
             commands::get_running_processes,
             commands::get_inventory,
             commands::place_item,
+            commands::unplace_item,
+            commands::check_and_grant_bonus,
             commands::get_garden_objects,
             commands::tick_growth,
             commands::get_season_info,

@@ -353,6 +353,22 @@ pub fn place_item(
 }
 
 #[tauri::command]
+pub fn unplace_item(db: State<'_, Arc<AppDb>>, inventory_id: i64) -> Result<(), String> {
+    let conn = db.conn.lock().unwrap();
+    conn.execute(
+        "DELETE FROM garden_objects WHERE inventory_id = ?1",
+        [inventory_id],
+    )
+    .map_err(|e| e.to_string())?;
+    conn.execute(
+        "UPDATE inventory SET placed = 0 WHERE id = ?1",
+        [inventory_id],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
 pub fn tick_growth(db: State<'_, Arc<AppDb>>) -> Result<f64, String> {
     let conn = db.conn.lock().unwrap();
     let now = chrono::Local::now()
@@ -553,4 +569,108 @@ pub fn list_frozen_gardens(db: State<'_, Arc<AppDb>>) -> Result<Vec<FrozenGarden
         .collect();
 
     Ok(gardens)
+}
+
+// --- Bonus Items ---
+
+const ITEM_TYPES: &[&str] = &[
+    "house", "tree", "flower", "tower", "windmill", "shrine", "lamp", "pond", "statue",
+];
+
+fn grant_random_items(conn: &rusqlite::Connection, count: usize) -> Result<usize, String> {
+    let now = chrono::Local::now()
+        .format("%Y-%m-%dT%H:%M:%S")
+        .to_string();
+    let mut granted = 0;
+    for _ in 0..count {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .subsec_nanos() as usize;
+        let item_type = ITEM_TYPES[nanos % ITEM_TYPES.len()];
+        conn.execute(
+            "INSERT INTO inventory (item_type, item_variant, obtained_at, placed) VALUES (?1, NULL, ?2, 0)",
+            rusqlite::params![item_type, &now],
+        )
+        .map_err(|e| e.to_string())?;
+        granted += 1;
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    Ok(granted)
+}
+
+#[tauri::command]
+pub fn check_and_grant_bonus(db: State<'_, Arc<AppDb>>) -> Result<Vec<String>, String> {
+    let conn = db.conn.lock().unwrap();
+    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+
+    let last_bonus: Option<String> = conn
+        .query_row(
+            "SELECT last_bonus_date FROM garden_state WHERE id = 1",
+            [],
+            |r| r.get(0),
+        )
+        .ok();
+
+    if last_bonus.as_deref() == Some(today.as_str()) {
+        return Ok(vec![]);
+    }
+
+    let total_items: i64 = conn
+        .query_row("SELECT COUNT(*) FROM inventory", [], |r| r.get(0))
+        .unwrap_or(0);
+
+    let total_achievements: i64 = conn
+        .query_row("SELECT COUNT(*) FROM achievements", [], |r| r.get(0))
+        .unwrap_or(0);
+
+    let mut bonuses = Vec::new();
+
+    if total_items == 0 && total_achievements == 0 {
+        grant_random_items(&conn, 3)?;
+        bonuses.push("初回ボーナス: 3アイテム獲得！".to_string());
+    }
+
+    let streak = calc_login_streak(&conn, &today);
+    if streak >= 7 && streak % 7 == 0 {
+        grant_random_items(&conn, 3)?;
+        bonuses.push(format!("{}日連続ログインボーナス: 3アイテム獲得！", streak));
+    }
+
+    conn.execute(
+        "UPDATE garden_state SET last_bonus_date = ?1 WHERE id = 1",
+        [&today],
+    )
+    .map_err(|e| e.to_string())?;
+
+    Ok(bonuses)
+}
+
+fn calc_login_streak(conn: &rusqlite::Connection, today: &str) -> i64 {
+    let dates: Vec<String> = {
+        let mut stmt = conn
+            .prepare("SELECT DISTINCT achieved_date FROM achievements ORDER BY achieved_date DESC")
+            .unwrap();
+        stmt.query_map([], |r| r.get(0))
+            .unwrap()
+            .filter_map(|r| r.ok())
+            .collect()
+    };
+
+    let mut streak = 0i64;
+    let mut expected = chrono::NaiveDate::parse_from_str(today, "%Y-%m-%d")
+        .unwrap_or_else(|_| chrono::Local::now().date_naive());
+
+    for date_str in &dates {
+        if let Ok(d) = chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
+            if d == expected {
+                streak += 1;
+                expected -= chrono::Duration::days(1);
+            } else if d < expected {
+                break;
+            }
+        }
+    }
+    streak
 }

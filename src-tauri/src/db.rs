@@ -99,6 +99,16 @@ impl AppDb {
                 .map_err(|e| e.to_string())?;
         }
 
+        let has_last_bonus: bool = conn
+            .prepare("SELECT COUNT(*) FROM pragma_table_info('garden_state') WHERE name='last_bonus_date'")
+            .and_then(|mut s| s.query_row([], |r| r.get::<_, i64>(0)))
+            .unwrap_or(0)
+            > 0;
+        if !has_last_bonus {
+            conn.execute_batch("ALTER TABLE garden_state ADD COLUMN last_bonus_date TEXT;")
+                .map_err(|e| e.to_string())?;
+        }
+
         Ok(())
     }
 }
