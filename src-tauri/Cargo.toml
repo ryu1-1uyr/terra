@@ -1,6 +1,6 @@
 [package]
 name = "terra"
-version = "0.1.0"
+version = "0.2.0"
 description = "terra - process-driven task rewards with an HD-2D voxel garden"
 authors = []
 edition = "2021"

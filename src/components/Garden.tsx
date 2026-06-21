@@ -60,7 +60,6 @@ export function Garden() {
   const [placedObjects, setPlacedObjects] = useState<PlacedObject[]>([]);
   const [season, setSeason] = useState<SeasonInfo | null>(null);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
-  const [bonusMessages, setBonusMessages] = useState<string[]>([]);
   const sceneRef = useRef<{
     cam: THREE.PerspectiveCamera;
     tiles: THREE.Mesh[];
@@ -87,10 +86,7 @@ export function Garden() {
     loadData();
     invoke<string[]>("check_and_grant_bonus")
       .then((msgs) => {
-        if (msgs.length > 0) {
-          setBonusMessages(msgs);
-          loadData();
-        }
+        if (msgs.length > 0) loadData();
       })
       .catch(() => {});
     let unlisten: Promise<() => void> | null = null;
@@ -229,19 +225,6 @@ export function Garden() {
         onPointerDown={handlePointerDown}
         onClick={handleCanvasClick}
       />
-      {bonusMessages.length > 0 && (
-        <div className="bonus-toast">
-          {bonusMessages.map((msg, i) => (
-            <div key={i} className="bonus-message">{msg}</div>
-          ))}
-          <button
-            className="bonus-dismiss"
-            onClick={() => setBonusMessages([])}
-          >
-            OK
-          </button>
-        </div>
-      )}
       {season && (
         <div className="season-badge">
           <span>Season {season.season_number}</span>
