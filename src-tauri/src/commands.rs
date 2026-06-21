@@ -162,3 +162,132 @@ pub fn update_task_processes(
 pub fn get_running_processes() -> Vec<process_monitor::RunningProcess> {
     process_monitor::list_running_processes()
 }
+
+// --- Inventory & Garden ---
+
+#[derive(Debug, Serialize, Clone)]
+pub struct InventoryItem {
+    pub id: i64,
+    pub item_type: String,
+    pub item_variant: Option<String>,
+    pub obtained_at: String,
+    pub placed: bool,
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct PlacedObject {
+    pub id: i64,
+    pub inventory_id: i64,
+    pub item_type: String,
+    pub grid_x: f64,
+    pub grid_z: f64,
+    pub growth_stage: f64,
+    pub random_seed: f64,
+}
+
+#[tauri::command]
+pub fn get_inventory(db: State<'_, Arc<AppDb>>) -> Result<Vec<InventoryItem>, String> {
+    let conn = db.conn.lock().unwrap();
+    let mut stmt = conn
+        .prepare("SELECT id, item_type, item_variant, obtained_at, placed FROM inventory ORDER BY obtained_at DESC")
+        .map_err(|e| e.to_string())?;
+
+    let items = stmt
+        .query_map([], |row| {
+            Ok(InventoryItem {
+                id: row.get(0)?,
+                item_type: row.get(1)?,
+                item_variant: row.get(2)?,
+                obtained_at: row.get(3)?,
+                placed: row.get::<_, i64>(4)? != 0,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(items)
+}
+
+#[tauri::command]
+pub fn place_item(
+    db: State<'_, Arc<AppDb>>,
+    inventory_id: i64,
+    grid_x: f64,
+    grid_z: f64,
+) -> Result<PlacedObject, String> {
+    let conn = db.conn.lock().unwrap();
+    let now = chrono::Local::now()
+        .format("%Y-%m-%dT%H:%M:%S")
+        .to_string();
+    let random_seed: f64 = {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .subsec_nanos();
+        (nanos as f64) / 1_000_000_000.0
+    };
+
+    conn.execute(
+        "INSERT INTO garden_objects (inventory_id, grid_x, grid_z, placed_at, random_seed) VALUES (?1, ?2, ?3, ?4, ?5)",
+        rusqlite::params![inventory_id, grid_x, grid_z, &now, random_seed],
+    )
+    .map_err(|e| e.to_string())?;
+
+    conn.execute(
+        "UPDATE inventory SET placed = 1 WHERE id = ?1",
+        [inventory_id],
+    )
+    .map_err(|e| e.to_string())?;
+
+    let obj_id = conn.last_insert_rowid();
+    let item_type: String = conn
+        .query_row(
+            "SELECT item_type FROM inventory WHERE id = ?1",
+            [inventory_id],
+            |r| r.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+
+    Ok(PlacedObject {
+        id: obj_id,
+        inventory_id,
+        item_type,
+        grid_x,
+        grid_z,
+        growth_stage: 0.0,
+        random_seed,
+    })
+}
+
+#[tauri::command]
+pub fn get_garden_objects(db: State<'_, Arc<AppDb>>) -> Result<Vec<PlacedObject>, String> {
+    let conn = db.conn.lock().unwrap();
+    let mut stmt = conn
+        .prepare(
+            "SELECT g.id, g.inventory_id, i.item_type, g.grid_x, g.grid_z, g.growth_stage, g.random_seed
+             FROM garden_objects g
+             JOIN inventory i ON g.inventory_id = i.id
+             ORDER BY g.placed_at ASC",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let objects = stmt
+        .query_map([], |row| {
+            Ok(PlacedObject {
+                id: row.get(0)?,
+                inventory_id: row.get(1)?,
+                item_type: row.get(2)?,
+                grid_x: row.get(3)?,
+                grid_z: row.get(4)?,
+                growth_stage: row.get(5)?,
+                random_seed: row.get(6)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(objects)
+}

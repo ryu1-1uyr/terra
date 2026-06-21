@@ -16,6 +16,17 @@ pub struct AchievementEvent {
     pub task_id: String,
     pub task_title: String,
     pub achieved_date: String,
+    pub reward_type: String,
+}
+
+fn random_reward_type() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .subsec_nanos();
+    let types = ["house", "tree", "flower", "flower", "tree"];
+    types[(nanos as usize) % types.len()].to_string()
 }
 
 pub fn list_running_processes() -> Vec<RunningProcess> {
@@ -98,10 +109,18 @@ pub fn check_and_record_achievements(db: &AppDb) -> Vec<AchievementEvent> {
                     "INSERT INTO achievements (task_id, achieved_date, detected_at) VALUES (?1, ?2, ?3)",
                     rusqlite::params![task_id, &today, &now],
                 );
+
+                let item_type = random_reward_type();
+                let _ = conn.execute(
+                    "INSERT INTO inventory (item_type, item_variant, obtained_at) VALUES (?1, ?2, ?3)",
+                    rusqlite::params![&item_type, Option::<String>::None, &now],
+                );
+
                 events.push(AchievementEvent {
                     task_id: task_id.clone(),
                     task_title: task_title.clone(),
                     achieved_date: today.clone(),
+                    reward_type: item_type,
                 });
             }
             recorded_tasks.insert(task_id.clone());

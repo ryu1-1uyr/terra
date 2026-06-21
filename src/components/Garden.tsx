@@ -1,4 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import * as THREE from "three";
 import "./Garden.css";
 
@@ -9,22 +11,23 @@ interface GardenObject {
   h?: number;
 }
 
-const DEMO_OBJECTS: GardenObject[] = [
-  { type: "tower", gx: 5, gy: 2, h: 5.4 },
-  { type: "house", gx: 2, gy: 2 },
-  { type: "house", gx: 3, gy: 2 },
-  { type: "house", gx: 2, gy: 3 },
-  { type: "house", gx: 6, gy: 5 },
-  { type: "house", gx: 1, gy: 5 },
-  { type: "tree", gx: 0, gy: 1 },
-  { type: "tree", gx: 4, gy: 4 },
-  { type: "tree", gx: 7, gy: 6 },
-  { type: "flower", gx: 1, gy: 0 },
-  { type: "flower", gx: 3, gy: 4 },
-  { type: "flower", gx: 5, gy: 6 },
-  { type: "flower", gx: 6, gy: 3 },
-  { type: "flower", gx: 7, gy: 1 },
-];
+interface PlacedObject {
+  id: number;
+  inventory_id: number;
+  item_type: string;
+  grid_x: number;
+  grid_z: number;
+  growth_stage: number;
+  random_seed: number;
+}
+
+interface InventoryItem {
+  id: number;
+  item_type: string;
+  item_variant: string | null;
+  obtained_at: string;
+  placed: boolean;
+}
 
 const GRID = 8;
 const HALF = (GRID - 1) / 2;
@@ -32,25 +35,125 @@ function gpos(gx: number, gy: number): [number, number] {
   return [gx - HALF, gy - HALF];
 }
 
+function placedToGardenObjects(placed: PlacedObject[]): GardenObject[] {
+  return placed.map((p) => ({
+    type: p.item_type as GardenObject["type"],
+    gx: p.grid_x,
+    gy: p.grid_z,
+  }));
+}
+
 export function Garden() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [placedObjects, setPlacedObjects] = useState<PlacedObject[]>([]);
+
+  const loadData = useCallback(async () => {
+    try {
+      const [inv, objs] = await Promise.all([
+        invoke<InventoryItem[]>("get_inventory"),
+        invoke<PlacedObject[]>("get_garden_objects"),
+      ]);
+      setInventory(inv);
+      setPlacedObjects(objs);
+    } catch {
+      // Tauri IPC unavailable (e.g. opened in browser)
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+    let unlisten: Promise<() => void> | null = null;
+    try {
+      unlisten = listen("achievement", () => {
+        loadData();
+      });
+    } catch {
+      // outside Tauri webview
+    }
+    return () => {
+      unlisten?.then((fn) => fn()).catch(() => {});
+    };
+  }, [loadData]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const { cleanup } = initThreeScene(canvas, DEMO_OBJECTS);
+    if (cleanupRef.current) {
+      cleanupRef.current();
+    }
+
+    const objects = placedToGardenObjects(placedObjects);
+    const { cleanup } = initThreeScene(canvas, objects);
     cleanupRef.current = cleanup;
 
     return () => {
       cleanup();
+      cleanupRef.current = null;
     };
-  }, []);
+  }, [placedObjects]);
+
+  const unplacedItems = inventory.filter((i) => !i.placed);
+
+  const handlePlace = async (item: InventoryItem) => {
+    const occupied = new Set(
+      placedObjects.map((o) => `${Math.round(o.grid_x)},${Math.round(o.grid_z)}`)
+    );
+    let gx = -1;
+    let gz = -1;
+    for (let x = 0; x < GRID; x++) {
+      for (let z = 0; z < GRID; z++) {
+        if (!occupied.has(`${x},${z}`)) {
+          gx = x;
+          gz = z;
+          break;
+        }
+      }
+      if (gx >= 0) break;
+    }
+    if (gx < 0) return;
+
+    try {
+      await invoke("place_item", {
+        inventoryId: item.id,
+        gridX: gx,
+        gridZ: gz,
+      });
+      await loadData();
+    } catch (e) {
+      console.error("Failed to place item:", e);
+    }
+  };
+
+  const itemEmoji: Record<string, string> = {
+    house: "🏠",
+    tree: "🌳",
+    flower: "🌸",
+    tower: "🏙️",
+  };
 
   return (
     <div className="garden-container">
       <canvas ref={canvasRef} className="garden-canvas" />
+      {unplacedItems.length > 0 && (
+        <div className="inventory-panel">
+          <div className="inventory-label">インベントリ</div>
+          <div className="inventory-items">
+            {unplacedItems.map((item) => (
+              <button
+                key={item.id}
+                className="inventory-item"
+                onClick={() => handlePlace(item)}
+                title={`${item.item_type}を配置`}
+              >
+                {itemEmoji[item.item_type] ?? "📦"}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
