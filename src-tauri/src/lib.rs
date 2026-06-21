@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use tauri::{
     Manager,
     menu::{Menu, MenuItem},
@@ -18,8 +19,11 @@ pub fn run() {
                 .path()
                 .app_data_dir()
                 .map_err(|e| e.to_string())?;
-            let app_db = db::AppDb::new(app_dir).expect("Failed to initialize database");
-            app.manage(app_db);
+            let app_db = Arc::new(db::AppDb::new(app_dir).expect("Failed to initialize database"));
+            app.manage(app_db.clone());
+
+            // Start process monitoring polling
+            process_monitor::start_polling(app.handle().clone(), app_db);
 
             // System tray
             let show_i = MenuItem::with_id(app, "show", "箱庭を開く", true, None::<&str>)?;

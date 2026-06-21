@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
@@ -21,7 +23,7 @@ pub struct CreateTaskInput {
 }
 
 #[tauri::command]
-pub fn list_tasks(db: State<'_, AppDb>) -> Result<Vec<Task>, String> {
+pub fn list_tasks(db: State<'_, Arc<AppDb>>) -> Result<Vec<Task>, String> {
     let conn = db.conn.lock().unwrap();
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
 
@@ -86,7 +88,7 @@ pub fn list_tasks(db: State<'_, AppDb>) -> Result<Vec<Task>, String> {
 }
 
 #[tauri::command]
-pub fn create_task(db: State<'_, AppDb>, input: CreateTaskInput) -> Result<Task, String> {
+pub fn create_task(db: State<'_, Arc<AppDb>>, input: CreateTaskInput) -> Result<Task, String> {
     let conn = db.conn.lock().unwrap();
     let id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Local::now()
@@ -118,7 +120,7 @@ pub fn create_task(db: State<'_, AppDb>, input: CreateTaskInput) -> Result<Task,
 }
 
 #[tauri::command]
-pub fn delete_task(db: State<'_, AppDb>, task_id: String) -> Result<(), String> {
+pub fn delete_task(db: State<'_, Arc<AppDb>>, task_id: String) -> Result<(), String> {
     let conn = db.conn.lock().unwrap();
     conn.execute(
         "DELETE FROM task_processes WHERE task_id = ?1",
@@ -134,7 +136,7 @@ pub fn delete_task(db: State<'_, AppDb>, task_id: String) -> Result<(), String> 
 
 #[tauri::command]
 pub fn update_task_processes(
-    db: State<'_, AppDb>,
+    db: State<'_, Arc<AppDb>>,
     task_id: String,
     processes: Vec<String>,
 ) -> Result<(), String> {

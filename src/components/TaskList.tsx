@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { TaskCreateDialog } from "./TaskCreateDialog";
 import "./TaskList.css";
 
@@ -27,6 +28,12 @@ export function TaskList() {
 
   useEffect(() => {
     loadTasks();
+    const unlisten = listen("achievement", () => {
+      loadTasks();
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
   }, [loadTasks]);
 
   const handleDelete = async (taskId: string, title: string) => {
