@@ -62,15 +62,22 @@ export function TaskList() {
   useEffect(() => {
     loadTasks();
     loadAchievements();
-    let unlisten: Promise<() => void> | null = null;
+    const unlisteners: Promise<() => void>[] = [];
     if ((window as any).__TAURI_INTERNALS__) {
-      unlisten = listen("achievement", () => {
-        loadTasks();
-        loadAchievements();
-      });
+      unlisteners.push(
+        listen("achievement", () => {
+          loadTasks();
+          loadAchievements();
+        }),
+      );
+      unlisteners.push(
+        listen("tracking-changed", () => {
+          loadTasks();
+        }),
+      );
     }
     return () => {
-      unlisten?.then((fn) => fn()).catch(() => {});
+      for (const u of unlisteners) u.then((fn) => fn()).catch(() => {});
     };
   }, [loadTasks, loadAchievements]);
 

@@ -137,11 +137,17 @@ fn record_achievement(
     })
 }
 
+struct PollResult {
+    achievements: Vec<AchievementEvent>,
+    tracking_changed: bool,
+}
+
 fn poll_and_record(
     db: &AppDb,
     state: &TrackingState,
-) -> Vec<AchievementEvent> {
+) -> PollResult {
     let tracking = &mut *state.inner.lock().unwrap();
+    let prev_ids: HashSet<String> = tracking.keys().cloned().collect();
     let mut sys = System::new();
     sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
 
@@ -265,7 +271,13 @@ fn poll_and_record(
         tracking.remove(&id);
     }
 
-    events
+    let current_ids: HashSet<String> = tracking.keys().cloned().collect();
+    let tracking_changed = prev_ids != current_ids;
+
+    PollResult {
+        achievements: events,
+        tracking_changed,
+    }
 }
 
 pub fn start_polling(app_handle: tauri::AppHandle, db: Arc<AppDb>, state: Arc<TrackingState>) {
@@ -273,9 +285,12 @@ pub fn start_polling(app_handle: tauri::AppHandle, db: Arc<AppDb>, state: Arc<Tr
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
         loop {
             interval.tick().await;
-            let events = poll_and_record(&db, &state);
-            for event in events {
+            let result = poll_and_record(&db, &state);
+            for event in result.achievements {
                 let _ = app_handle.emit("achievement", &event);
+            }
+            if result.tracking_changed {
+                let _ = app_handle.emit("tracking-changed", ());
             }
         }
     });
