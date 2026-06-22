@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../mock-invoke";
 import { listen } from "@tauri-apps/api/event";
 import * as THREE from "three";
 import { applyEmergence } from "./GardenEmergence";
@@ -303,7 +303,7 @@ export function Garden() {
             }}
             title={isDaytime ? "夜にする" : "昼にする"}
           >
-            {isDaytime ? "🌙" : "☀️"}
+            {isDaytime ? "☀️" : "🌙"}
           </button>
           <span>Season {season.season_number}</span>
           <span className="season-days">{season.days_elapsed}日目</span>

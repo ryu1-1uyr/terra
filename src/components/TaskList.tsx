@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../mock-invoke";
 import { listen } from "@tauri-apps/api/event";
 import { TaskCreateDialog } from "./TaskCreateDialog";
 import { TaskEditDialog } from "./TaskEditDialog";

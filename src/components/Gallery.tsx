@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke } from "../mock-invoke";
 import * as THREE from "three";
 import { applyEmergence } from "./GardenEmergence";
 import { createObjectMesh, type ObjectType } from "./GardenObjects";
