@@ -3,7 +3,8 @@ import { invoke } from "../mock-invoke";
 import { listen } from "@tauri-apps/api/event";
 import * as THREE from "three";
 import { applyEmergence } from "./GardenEmergence";
-import { createObjectMesh, type ObjectType } from "./GardenObjects";
+import { type ObjectType } from "./GardenObjects";
+import { buildGrownObject } from "./GardenGrowth";
 import { loadGardenSettings, type GardenSettings } from "./Settings";
 import "./Garden.css";
 
@@ -116,7 +117,7 @@ export function Garden() {
     }
 
     const objects = placedToGardenObjects(placedObjects);
-    const result = initThreeScene(canvas, objects);
+    const result = initThreeScene(canvas, objects, isDaytime);
     cleanupRef.current = result.cleanup;
     sceneRef.current = {
       cam: result.cam,
@@ -349,7 +350,7 @@ export function Garden() {
   );
 }
 
-function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[]) {
+function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[], initialDaytime = false) {
   let running = true;
   let animFrameId = 0;
 
@@ -360,18 +361,18 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[]) {
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
+  renderer.toneMappingExposure = 1.4;
 
   // --- Scene ---
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0a0c13);
-  scene.fog = new THREE.Fog(0x0a0c13, 16, 38);
+  scene.background = new THREE.Color(0x0e1220);
+  scene.fog = new THREE.Fog(0x0e1220, 22, 50);
 
   const cam = new THREE.PerspectiveCamera(34, 16 / 10, 0.1, 100);
 
   // --- Three-point lighting ---
-  scene.add(new THREE.HemisphereLight(0x6a7cff, 0x2a1d24, 0.55));
-  scene.add(new THREE.AmbientLight(0x36406a, 0.35));
+  scene.add(new THREE.HemisphereLight(0x6a7cff, 0x2a1d24, 1.2));
+  scene.add(new THREE.AmbientLight(0x4a5a8a, 1.0));
 
   const key = new THREE.DirectionalLight(0xffe8c2, 3.0);
   key.position.set(7, 13, 5);
@@ -395,12 +396,25 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[]) {
 
   const orbCore = new THREE.Mesh(
     new THREE.SphereGeometry(0.9, 24, 24),
-    new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xfff2d6, emissiveIntensity: 4.2 })
+    new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xfff2d6, emissiveIntensity: 2.5 })
   );
   orbCore.position.copy(ORB_POS);
   orbGroup.add(orbCore);
 
+  const haloCanvas = document.createElement("canvas");
+  haloCanvas.width = 128;
+  haloCanvas.height = 128;
+  const haloCtx = haloCanvas.getContext("2d")!;
+  const grad = haloCtx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  grad.addColorStop(0, "rgba(255, 236, 192, 0.9)");
+  grad.addColorStop(0.4, "rgba(255, 236, 192, 0.3)");
+  grad.addColorStop(1, "rgba(255, 236, 192, 0)");
+  haloCtx.fillStyle = grad;
+  haloCtx.fillRect(0, 0, 128, 128);
+  const haloTex = new THREE.CanvasTexture(haloCanvas);
+
   const haloMat = new THREE.SpriteMaterial({
+    map: haloTex,
     color: 0xffecc0,
     transparent: true,
     opacity: 0.62,
@@ -408,7 +422,7 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[]) {
     depthWrite: false,
   });
   const halo = new THREE.Sprite(haloMat);
-  halo.scale.set(5.0, 5.0, 1);
+  halo.scale.set(4.0, 4.0, 1);
   halo.position.copy(ORB_POS);
   orbGroup.add(halo);
 
@@ -427,7 +441,7 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[]) {
 
   const baseMesh = new THREE.Mesh(
     new THREE.BoxGeometry(GRID + 0.6, 0.6, GRID + 0.6),
-    new THREE.MeshStandardMaterial({ color: 0x121a26, roughness: 1, metalness: 0 })
+    new THREE.MeshStandardMaterial({ color: 0x1a2436, roughness: 1, metalness: 0 })
   );
   baseMesh.position.set(0, -0.5, 0);
   baseMesh.receiveShadow = true;
@@ -439,7 +453,7 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[]) {
     for (let gy = 0; gy < GRID; gy++) {
       const even = (gx + gy) % 2 === 0;
       const m = new THREE.MeshStandardMaterial({
-        color: even ? 0x273349 : 0x1c2638,
+        color: even ? 0x2e3d55 : 0x243050,
         roughness: 0.92,
         metalness: 0,
       });
@@ -480,18 +494,15 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[]) {
   // --- Place objects ---
   const sorted = [...objects].sort((a, b) => a.gx + a.gy - (b.gx + b.gy));
 
+  const growthAnimators: { update(dt: number): void }[] = [];
   for (const o of sorted) {
     const [px, pz] = gpos(o.gx, o.gy);
-    const s = 1 + (o.growth ?? 0);
-    const objGroup = new THREE.Group();
-    objGroup.position.set(px, 0, pz);
-    objGroup.scale.set(s, s, s);
-
-    const meshGroup = createObjectMesh(o.type, o.gx, o.gy);
-    for (const child of meshGroup.children) {
-      objGroup.add(child.clone());
-    }
-    root.add(objGroup);
+    const { group: grownGroup, animator } = buildGrownObject({
+      type: o.type, gx: o.gx, gy: o.gy, growth: o.growth ?? 0,
+    });
+    grownGroup.position.set(px, 0, pz);
+    root.add(grownGroup);
+    if (animator) growthAnimators.push(animator);
   }
 
   // --- Emergence effects ---
@@ -744,6 +755,8 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[]) {
     rimM.intensity = 24 + 6 * Math.sin(t * 1.3);
     rimL.intensity = 16 + 5 * Math.sin(t * 1.7 + 2.0);
 
+    for (const anim of growthAnimators) anim.update(0.016);
+
     // Post-process pipeline
     renderer.setRenderTarget(rtScene);
     renderer.clear();
@@ -774,6 +787,39 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[]) {
 
   loop();
 
+  // --- Settings sync ---
+  let orbBrightness = gs.orbBrightness;
+  let baseKeyIntensity = key.intensity;
+  const applyOrbBrightness = (b: number) => {
+    orbBrightness = b;
+    key.intensity = baseKeyIntensity * (0.3 + 0.7 * b);
+  };
+  applyOrbBrightness(gs.orbBrightness);
+
+  const baseOrbEmissive = 2.5;
+  const baseHaloOpacity = 0.62;
+  let orbGlow = gs.orbGlow;
+  const applyOrbGlow = (g: number) => {
+    orbGlow = g;
+    (orbCore.material as THREE.MeshStandardMaterial).emissiveIntensity = baseOrbEmissive * g;
+    haloMat.opacity = baseHaloOpacity * Math.min(g, 1.0);
+    halo.scale.setScalar(4.0 * (0.3 + 0.7 * g));
+  };
+  applyOrbGlow(gs.orbGlow);
+
+  const onSettingsChanged = (e: Event) => {
+    const s = (e as CustomEvent<GardenSettings>).detail;
+    compMat.uniforms.enableTilt.value = s.enableTilt ? 1.0 : 0.0;
+    compMat.uniforms.enableBloom.value = s.enableBloom ? 1.0 : 0.0;
+    compMat.uniforms.enableGrade.value = s.enableGrade ? 1.0 : 0.0;
+    compMat.uniforms.bloomStrength.value = s.bloomStrength;
+    compMat.uniforms.tiltStrength.value = s.tiltStrength;
+    compMat.uniforms.vignette.value = s.vignette;
+    applyOrbBrightness(s.orbBrightness);
+    applyOrbGlow(s.orbGlow);
+  };
+  window.addEventListener("garden-settings-changed", onSettingsChanged);
+
   // --- Day/night toggle ---
   const hemi = scene.children.find(
     (c) => c instanceof THREE.HemisphereLight
@@ -782,23 +828,25 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[]) {
     (c) => c instanceof THREE.AmbientLight
   ) as THREE.AmbientLight;
 
-  const nightTileColors = [0x273349, 0x1c2638];
+  const nightTileColors = [0x2e3d55, 0x243050];
   const dayTileColors = [0x5a7a52, 0x4d6d45];
 
   const onDaytimeChanged = (e: Event) => {
     const day = (e as CustomEvent<boolean>).detail;
     if (day) {
+      renderer.toneMappingExposure = 1.05;
       scene.background = new THREE.Color(0x5b8ec4);
       scene.fog = new THREE.Fog(0x5b8ec4, 16, 38);
       key.color.setHex(0xffffff);
-      key.intensity = 4.5;
+      baseKeyIntensity = 4.5;
+      key.intensity = 4.5 * (0.3 + 0.7 * orbBrightness);
       hemi.color.setHex(0xaaccff);
       hemi.groundColor.setHex(0x88aa66);
       hemi.intensity = 0.8;
       ambient.color.setHex(0x8899bb);
       ambient.intensity = 0.6;
       (orbCore.material as THREE.MeshStandardMaterial).emissive.setHex(0xfffaee);
-      (orbCore.material as THREE.MeshStandardMaterial).emissiveIntensity = 5.0;
+      (orbCore.material as THREE.MeshStandardMaterial).emissiveIntensity = 3.0 * orbGlow;
       haloMat.color.setHex(0xfff8dd);
       haloMat.opacity = 0.4;
       rimM.intensity = 8;
@@ -820,17 +868,19 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[]) {
         );
       }
     } else {
-      scene.background = new THREE.Color(0x0a0c13);
-      scene.fog = new THREE.Fog(0x0a0c13, 16, 38);
+      renderer.toneMappingExposure = 1.4;
+      scene.background = new THREE.Color(0x0e1220);
+      scene.fog = new THREE.Fog(0x0e1220, 22, 50);
       key.color.setHex(0xffe8c2);
-      key.intensity = 3.0;
+      baseKeyIntensity = 3.0;
+      key.intensity = 3.0 * (0.3 + 0.7 * orbBrightness);
       hemi.color.setHex(0x6a7cff);
       hemi.groundColor.setHex(0x2a1d24);
-      hemi.intensity = 0.55;
-      ambient.color.setHex(0x36406a);
-      ambient.intensity = 0.35;
+      hemi.intensity = 1.2;
+      ambient.color.setHex(0x4a5a8a);
+      ambient.intensity = 1.0;
       (orbCore.material as THREE.MeshStandardMaterial).emissive.setHex(0xfff2d6);
-      (orbCore.material as THREE.MeshStandardMaterial).emissiveIntensity = 4.2;
+      (orbCore.material as THREE.MeshStandardMaterial).emissiveIntensity = 2.5 * orbGlow;
       haloMat.color.setHex(0xffecc0);
       haloMat.opacity = 0.62;
       rimM.intensity = 26;
@@ -843,7 +893,7 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[]) {
         pl.color.setHex(0xc8ff9a);
         pl.intensity = 1.3;
       }
-      (baseMesh.material as THREE.MeshStandardMaterial).color.setHex(0x121a26);
+      (baseMesh.material as THREE.MeshStandardMaterial).color.setHex(0x1a2436);
       for (let i = 0; i < tiles.length; i++) {
         const t = tiles[i];
         const even = (t.userData.gx + t.userData.gz) % 2 === 0;
@@ -855,17 +905,9 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[]) {
   };
   window.addEventListener("garden-daytime-changed", onDaytimeChanged);
 
-  // --- Settings sync ---
-  const onSettingsChanged = (e: Event) => {
-    const s = (e as CustomEvent<GardenSettings>).detail;
-    compMat.uniforms.enableTilt.value = s.enableTilt ? 1.0 : 0.0;
-    compMat.uniforms.enableBloom.value = s.enableBloom ? 1.0 : 0.0;
-    compMat.uniforms.enableGrade.value = s.enableGrade ? 1.0 : 0.0;
-    compMat.uniforms.bloomStrength.value = s.bloomStrength;
-    compMat.uniforms.tiltStrength.value = s.tiltStrength;
-    compMat.uniforms.vignette.value = s.vignette;
-  };
-  window.addEventListener("garden-settings-changed", onSettingsChanged);
+  if (initialDaytime) {
+    onDaytimeChanged(new CustomEvent("garden-daytime-changed", { detail: true }));
+  }
 
   // --- Cleanup ---
   function cleanup() {

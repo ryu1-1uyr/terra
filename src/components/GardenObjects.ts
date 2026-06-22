@@ -211,34 +211,33 @@ function buildWindmill(g: THREE.Group) {
   cap.castShadow = true;
   g.add(cap);
 
-  // Blade hub
+  // Blade hub + rotor group
+  const bladeGroup = new THREE.Group();
+  bladeGroup.position.set(0, 0.68, 0.3);
+  bladeGroup.userData.isBladeGroup = true;
+
   const hub = new THREE.Mesh(
     new THREE.SphereGeometry(0.05, 8, 8),
     new THREE.MeshStandardMaterial({ color: 0x5a4a3a })
   );
-  hub.position.set(0, 0.68, 0.29);
-  g.add(hub);
+  hub.position.set(0, 0, -0.01);
+  bladeGroup.add(hub);
 
-  // Blades (4 arms)
   const bladeMat = new THREE.MeshStandardMaterial({ color: 0xddd5c4, roughness: 0.7 });
   for (let i = 0; i < 4; i++) {
     const blade = new THREE.Mesh(
       new THREE.BoxGeometry(0.06, 0.4, 0.02),
       bladeMat
     );
-    blade.position.set(0, 0.68, 0.3);
-    blade.rotation.z = (i * Math.PI) / 2;
-    blade.position.x += Math.cos(blade.rotation.z) * 0.2;
-    blade.position.y += Math.sin(blade.rotation.z) * 0.2;
-    // Re-center blade pivot
     blade.position.set(
       Math.sin((i * Math.PI) / 2) * 0.2,
-      0.68 + Math.cos((i * Math.PI) / 2) * 0.2,
-      0.31
+      Math.cos((i * Math.PI) / 2) * 0.2,
+      0.01
     );
     blade.rotation.z = (i * Math.PI) / 2;
-    g.add(blade);
+    bladeGroup.add(blade);
   }
+  g.add(bladeGroup);
 
   // Door
   const door = new THREE.Mesh(
