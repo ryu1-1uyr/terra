@@ -1,4 +1,5 @@
 use serde::Serialize;
+use std::collections::HashMap;
 use std::sync::Arc;
 use sysinfo::System;
 use tauri::Emitter;
@@ -17,6 +18,14 @@ pub struct AchievementEvent {
     pub task_title: String,
     pub achieved_date: String,
     pub reward_type: String,
+}
+
+struct TrackedTask {
+    task_title: String,
+    process_name: String,
+    started_at: std::time::Instant,
+    started_date: String,
+    is_daily: bool,
 }
 
 fn random_reward_type() -> String {
@@ -54,7 +63,68 @@ pub fn list_running_processes() -> Vec<RunningProcess> {
     result
 }
 
-pub fn check_and_record_achievements(db: &AppDb) -> Vec<AchievementEvent> {
+fn record_achievement(
+    conn: &rusqlite::Connection,
+    task_id: &str,
+    achieved_date: &str,
+    duration_secs: i64,
+    is_daily: bool,
+) -> Option<AchievementEvent> {
+    let already = conn
+        .query_row(
+            "SELECT COUNT(*) FROM achievements WHERE task_id = ?1 AND achieved_date = ?2",
+            rusqlite::params![task_id, achieved_date],
+            |r| r.get::<_, i64>(0),
+        )
+        .unwrap_or(0);
+
+    if already > 0 {
+        return None;
+    }
+
+    let now = chrono::Local::now()
+        .format("%Y-%m-%dT%H:%M:%S")
+        .to_string();
+
+    let _ = conn.execute(
+        "INSERT INTO achievements (task_id, achieved_date, detected_at, duration_secs) VALUES (?1, ?2, ?3, ?4)",
+        rusqlite::params![task_id, achieved_date, &now, duration_secs],
+    );
+
+    let item_type = random_reward_type();
+    let _ = conn.execute(
+        "INSERT INTO inventory (item_type, item_variant, obtained_at) VALUES (?1, ?2, ?3)",
+        rusqlite::params![&item_type, Option::<String>::None, &now],
+    );
+
+    if !is_daily {
+        let _ = conn.execute(
+            "UPDATE tasks SET archived = 1 WHERE id = ?1",
+            rusqlite::params![task_id],
+        );
+    }
+
+    // Read back task_title for the event
+    let task_title: String = conn
+        .query_row(
+            "SELECT title FROM tasks WHERE id = ?1",
+            rusqlite::params![task_id],
+            |r| r.get(0),
+        )
+        .unwrap_or_default();
+
+    Some(AchievementEvent {
+        task_id: task_id.to_string(),
+        task_title,
+        achieved_date: achieved_date.to_string(),
+        reward_type: item_type,
+    })
+}
+
+fn poll_and_record(
+    db: &AppDb,
+    tracking: &mut HashMap<String, TrackedTask>,
+) -> Vec<AchievementEvent> {
     let mut sys = System::new();
     sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
 
@@ -66,9 +136,6 @@ pub fn check_and_record_achievements(db: &AppDb) -> Vec<AchievementEvent> {
 
     let conn = db.conn.lock().unwrap();
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
-    let now = chrono::Local::now()
-        .format("%Y-%m-%dT%H:%M:%S")
-        .to_string();
 
     let mut stmt = conn
         .prepare(
@@ -93,10 +160,45 @@ pub fn check_and_record_achievements(db: &AppDb) -> Vec<AchievementEvent> {
         .collect();
 
     let mut events = Vec::new();
-    let mut recorded_tasks = std::collections::HashSet::new();
 
+    // Phase 1: date rollover — if tracking started yesterday, finalize and restart
+    let mut rollovers: Vec<String> = Vec::new();
+    for (task_id, tracked) in tracking.iter() {
+        if tracked.started_date != today {
+            rollovers.push(task_id.clone());
+        }
+    }
+    for task_id in rollovers {
+        if let Some(tracked) = tracking.remove(&task_id) {
+            let duration_secs = tracked.started_at.elapsed().as_secs() as i64;
+            if let Some(ev) = record_achievement(
+                &conn,
+                &task_id,
+                &tracked.started_date,
+                duration_secs,
+                tracked.is_daily,
+            ) {
+                events.push(ev);
+            }
+            // Restart tracking for today if process is still running
+            if running.contains(&tracked.process_name.to_lowercase()) {
+                tracking.insert(
+                    task_id,
+                    TrackedTask {
+                        task_title: tracked.task_title,
+                        process_name: tracked.process_name,
+                        started_at: std::time::Instant::now(),
+                        started_date: today.clone(),
+                        is_daily: tracked.is_daily,
+                    },
+                );
+            }
+        }
+    }
+
+    // Phase 2: start tracking newly detected processes
     for (task_id, task_title, process_name, is_daily) in &rows {
-        if recorded_tasks.contains(task_id) {
+        if tracking.contains_key(task_id) {
             continue;
         }
 
@@ -110,48 +212,40 @@ pub fn check_and_record_achievements(db: &AppDb) -> Vec<AchievementEvent> {
                 .unwrap_or(0);
 
             if already == 0 {
-                let duration: Option<i64> = sys.processes().values()
-                    .find(|p| p.name().to_string_lossy().to_lowercase() == process_name.to_lowercase())
-                    .and_then(|p| {
-                        let start = p.start_time();
-                        if start > 0 {
-                            let now_ts = std::time::SystemTime::now()
-                                .duration_since(std::time::UNIX_EPOCH)
-                                .unwrap()
-                                .as_secs();
-                            Some((now_ts - start) as i64)
-                        } else {
-                            None
-                        }
-                    });
-
-                let _ = conn.execute(
-                    "INSERT INTO achievements (task_id, achieved_date, detected_at, duration_secs) VALUES (?1, ?2, ?3, ?4)",
-                    rusqlite::params![task_id, &today, &now, duration],
+                tracking.insert(
+                    task_id.clone(),
+                    TrackedTask {
+                        task_title: task_title.clone(),
+                        process_name: process_name.clone(),
+                        started_at: std::time::Instant::now(),
+                        started_date: today.clone(),
+                        is_daily: *is_daily,
+                    },
                 );
-
-                let item_type = random_reward_type();
-                let _ = conn.execute(
-                    "INSERT INTO inventory (item_type, item_variant, obtained_at) VALUES (?1, ?2, ?3)",
-                    rusqlite::params![&item_type, Option::<String>::None, &now],
-                );
-
-                events.push(AchievementEvent {
-                    task_id: task_id.clone(),
-                    task_title: task_title.clone(),
-                    achieved_date: today.clone(),
-                    reward_type: item_type,
-                });
-
-                if !is_daily {
-                    let _ = conn.execute(
-                        "UPDATE tasks SET archived = 1 WHERE id = ?1",
-                        rusqlite::params![task_id],
-                    );
-                }
             }
-            recorded_tasks.insert(task_id.clone());
         }
+    }
+
+    // Phase 3: process stopped — record achievement
+    let mut completed: Vec<String> = Vec::new();
+    for (task_id, tracked) in tracking.iter() {
+        if !running.contains(&tracked.process_name.to_lowercase()) {
+            let duration_secs = tracked.started_at.elapsed().as_secs() as i64;
+            if let Some(ev) = record_achievement(
+                &conn,
+                &task_id,
+                &tracked.started_date,
+                duration_secs,
+                tracked.is_daily,
+            ) {
+                events.push(ev);
+            }
+            completed.push(task_id.clone());
+        }
+    }
+
+    for id in completed {
+        tracking.remove(&id);
     }
 
     events
@@ -160,9 +254,10 @@ pub fn check_and_record_achievements(db: &AppDb) -> Vec<AchievementEvent> {
 pub fn start_polling(app_handle: tauri::AppHandle, db: Arc<AppDb>) {
     tauri::async_runtime::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
+        let mut tracking: HashMap<String, TrackedTask> = HashMap::new();
         loop {
             interval.tick().await;
-            let events = check_and_record_achievements(&db);
+            let events = poll_and_record(&db, &mut tracking);
             for event in events {
                 let _ = app_handle.emit("achievement", &event);
             }
