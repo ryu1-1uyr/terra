@@ -91,6 +91,17 @@
   border: 2px solid var(--muted);
 }
 
+.status-dot.tracking {
+  background: #f0a030;
+  box-shadow: 0 0 8px #f0a030;
+  animation: pulse-tracking 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-tracking {
+  0%, 100% { opacity: 1; box-shadow: 0 0 4px #f0a030; }
+  50% { opacity: 0.5; box-shadow: 0 0 12px #f0a030; }
+}
+
 .status-dot.achieved {
   background: var(--accent);
   box-shadow: 0 0 8px var(--accent);

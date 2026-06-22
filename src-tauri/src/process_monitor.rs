@@ -1,6 +1,6 @@
 use serde::Serialize;
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, Mutex};
 use sysinfo::System;
 use tauri::Emitter;
 
@@ -26,6 +26,22 @@ struct TrackedTask {
     started_at: std::time::Instant,
     started_date: String,
     is_daily: bool,
+}
+
+pub struct TrackingState {
+    inner: Mutex<HashMap<String, TrackedTask>>,
+}
+
+impl TrackingState {
+    pub fn new() -> Self {
+        Self {
+            inner: Mutex::new(HashMap::new()),
+        }
+    }
+
+    pub fn tracked_task_ids(&self) -> HashSet<String> {
+        self.inner.lock().unwrap().keys().cloned().collect()
+    }
 }
 
 fn random_reward_type() -> String {
@@ -123,8 +139,9 @@ fn record_achievement(
 
 fn poll_and_record(
     db: &AppDb,
-    tracking: &mut HashMap<String, TrackedTask>,
+    state: &TrackingState,
 ) -> Vec<AchievementEvent> {
+    let tracking = &mut *state.inner.lock().unwrap();
     let mut sys = System::new();
     sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
 
@@ -251,13 +268,12 @@ fn poll_and_record(
     events
 }
 
-pub fn start_polling(app_handle: tauri::AppHandle, db: Arc<AppDb>) {
+pub fn start_polling(app_handle: tauri::AppHandle, db: Arc<AppDb>, state: Arc<TrackingState>) {
     tauri::async_runtime::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
-        let mut tracking: HashMap<String, TrackedTask> = HashMap::new();
         loop {
             interval.tick().await;
-            let events = poll_and_record(&db, &mut tracking);
+            let events = poll_and_record(&db, &state);
             for event in events {
                 let _ = app_handle.emit("achievement", &event);
             }

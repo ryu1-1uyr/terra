@@ -26,6 +26,7 @@ interface MockTask {
   created_at: string;
   processes: string[];
   achieved_today: boolean;
+  tracking: boolean;
   total_achievements: number;
   daily: boolean;
   current_streak: number;
@@ -58,8 +59,8 @@ const store = {
   ] as MockGardenObject[],
 
   tasks: [
-    { id: "mock-1", title: "VS Code で開発", created_at: "2026-06-01T00:00:00Z", processes: ["code"], achieved_today: true, total_achievements: 12, daily: true, current_streak: 3 },
-    { id: "mock-2", title: "Figma でデザイン", created_at: "2026-06-02T00:00:00Z", processes: ["figma"], achieved_today: false, total_achievements: 5, daily: true, current_streak: 0 },
+    { id: "mock-1", title: "VS Code で開発", created_at: "2026-06-01T00:00:00Z", processes: ["code"], achieved_today: true, tracking: false, total_achievements: 12, daily: true, current_streak: 3 },
+    { id: "mock-2", title: "Figma でデザイン", created_at: "2026-06-02T00:00:00Z", processes: ["figma"], achieved_today: false, tracking: true, total_achievements: 5, daily: true, current_streak: 0 },
   ] as MockTask[],
 
   achievements: [
@@ -140,6 +141,7 @@ function mockInvoke(cmd: string, args?: Record<string, any>): any {
         created_at: new Date().toISOString(),
         processes,
         achieved_today: false,
+        tracking: false,
         total_achievements: 0,
         daily: true,
         current_streak: 0,

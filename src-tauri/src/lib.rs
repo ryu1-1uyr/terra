@@ -24,8 +24,11 @@ pub fn run() {
             let app_db = Arc::new(db::AppDb::new(app_dir).expect("Failed to initialize database"));
             app.manage(app_db.clone());
 
+            let tracking_state = Arc::new(process_monitor::TrackingState::new());
+            app.manage(tracking_state.clone());
+
             // Start process monitoring polling
-            process_monitor::start_polling(app.handle().clone(), app_db);
+            process_monitor::start_polling(app.handle().clone(), app_db, tracking_state);
 
             // System tray
             let show_i = MenuItem::with_id(app, "show", "terra を開く", true, None::<&str>)?;

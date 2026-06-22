@@ -11,6 +11,7 @@ interface Task {
   created_at: string;
   processes: string[];
   achieved_today: boolean;
+  tracking: boolean;
   total_achievements: number;
   daily: boolean;
   current_streak: number;
@@ -109,6 +110,8 @@ export function TaskList() {
                 <div className="task-status">
                   {task.achieved_today ? (
                     <span className="status-dot achieved" />
+                  ) : task.tracking ? (
+                    <span className="status-dot tracking" />
                   ) : (
                     <span className="status-dot pending" />
                   )}

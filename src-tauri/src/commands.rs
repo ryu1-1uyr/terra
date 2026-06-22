@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use tauri::State;
 
 use crate::db::AppDb;
-use crate::process_monitor;
+use crate::process_monitor::{self, TrackingState};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Task {
@@ -13,6 +13,7 @@ pub struct Task {
     pub created_at: String,
     pub processes: Vec<String>,
     pub achieved_today: bool,
+    pub tracking: bool,
     pub total_achievements: i64,
     pub daily: bool,
     pub current_streak: i64,
@@ -26,9 +27,13 @@ pub struct CreateTaskInput {
 }
 
 #[tauri::command]
-pub fn list_tasks(db: State<'_, Arc<AppDb>>) -> Result<Vec<Task>, String> {
+pub fn list_tasks(
+    db: State<'_, Arc<AppDb>>,
+    tracking_state: State<'_, Arc<TrackingState>>,
+) -> Result<Vec<Task>, String> {
     let conn = db.conn.lock().unwrap();
     let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+    let tracked_ids = tracking_state.tracked_task_ids();
 
     let mut stmt = conn
         .prepare("SELECT id, title, created_at, daily FROM tasks WHERE archived = 0 ORDER BY created_at DESC")
@@ -107,12 +112,15 @@ pub fn list_tasks(db: State<'_, Arc<AppDb>>) -> Result<Vec<Task>, String> {
             0
         };
 
+        let tracking = tracked_ids.contains(&id);
+
         tasks.push(Task {
             id,
             title,
             created_at,
             processes,
             achieved_today,
+            tracking,
             total_achievements,
             daily,
             current_streak,
@@ -150,6 +158,7 @@ pub fn create_task(db: State<'_, Arc<AppDb>>, input: CreateTaskInput) -> Result<
         created_at: now,
         processes: input.processes,
         achieved_today: false,
+        tracking: false,
         total_achievements: 0,
         daily: input.daily,
         current_streak: 0,
