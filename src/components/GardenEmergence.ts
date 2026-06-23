@@ -755,6 +755,66 @@ function ruleMonumentAura(grid: Grid, root: THREE.Group) {
   }
 }
 
+function ruleFortress(grid: Grid, root: THREE.Group) {
+  const visited = new Set<string>();
+  for (let gx = 0; gx < GRID - 1; gx++) {
+    for (let gy = 0; gy < GRID - 1; gy++) {
+      const block = [
+        grid[gx][gy]?.type,
+        grid[gx + 1][gy]?.type,
+        grid[gx][gy + 1]?.type,
+        grid[gx + 1][gy + 1]?.type,
+      ];
+      const towers = block.filter((t) => t === "tower").length;
+      const houses = block.filter((t) => t === "house").length;
+      if (towers < 2 || houses < 2) continue;
+      const key = `${gx},${gy}`;
+      if (visited.has(key)) continue;
+      visited.add(key);
+      const HALF = (GRID - 1) / 2;
+      const cx = gx + 0.5 - HALF;
+      const cz = gy + 0.5 - HALF;
+      const cobble = new THREE.Mesh(
+        new THREE.BoxGeometry(1.96, 0.02, 1.96),
+        new THREE.MeshStandardMaterial({
+          color: 0x4a4a5a,
+          roughness: 0.95,
+        })
+      );
+      cobble.position.set(cx, 0.01, cz);
+      cobble.receiveShadow = true;
+      root.add(cobble);
+      const torchPositions = [
+        [cx - 0.85, cz - 0.85],
+        [cx + 0.85, cz - 0.85],
+        [cx - 0.85, cz + 0.85],
+        [cx + 0.85, cz + 0.85],
+      ];
+      for (const [tx, tz] of torchPositions) {
+        const pole = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.015, 0.015, 0.3),
+          new THREE.MeshStandardMaterial({ color: 0x553322 })
+        );
+        pole.position.set(tx, 0.15, tz);
+        root.add(pole);
+        const flame = new THREE.Mesh(
+          new THREE.SphereGeometry(0.03, 6, 6),
+          new THREE.MeshStandardMaterial({
+            color: 0x000000,
+            emissive: 0xff6622,
+            emissiveIntensity: 3.0,
+          })
+        );
+        flame.position.set(tx, 0.33, tz);
+        root.add(flame);
+        const torchLight = new THREE.PointLight(0xff6622, 0.3, 1.0, 2.0);
+        torchLight.position.set(tx, 0.35, tz);
+        root.add(torchLight);
+      }
+    }
+  }
+}
+
 function ruleParadise(grid: Grid, root: THREE.Group) {
   for (let gx = 0; gx < GRID; gx++) {
     for (let gy = 0; gy < GRID; gy++) {
@@ -1395,4 +1455,5 @@ export function applyEmergence(
   ruleWindValley(grid, root);
   ruleRuins(grid, root);
   ruleParadise(grid, root);
+  ruleFortress(grid, root);
 }
