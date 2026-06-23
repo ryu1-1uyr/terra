@@ -755,6 +755,43 @@ function ruleMonumentAura(grid: Grid, root: THREE.Group) {
   }
 }
 
+function ruleGatekeeper(grid: Grid, root: THREE.Group) {
+  for (let gx = 0; gx < GRID; gx++) {
+    for (let gy = 0; gy < GRID; gy++) {
+      if (grid[gx][gy]?.type !== "house") continue;
+      const adjStatues = neighbors(grid, gx, gy).filter(
+        (n) => n.cell.type === "statue"
+      );
+      if (adjStatues.length === 0) continue;
+      const [px, pz] = gpos(gx, gy);
+      const guardMat = new THREE.MeshStandardMaterial({
+        color: 0x7a8a9a,
+        roughness: 0.6,
+        metalness: 0.2,
+      });
+      for (const s of adjStatues) {
+        const dx = s.gx - gx;
+        const dz = s.gy - gy;
+        const gx2 = px + dx * 0.35;
+        const gz2 = pz + dz * 0.35;
+        const pillar = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.03, 0.04, 0.25),
+          guardMat
+        );
+        pillar.position.set(gx2, 0.125, gz2);
+        pillar.castShadow = true;
+        root.add(pillar);
+        const top = new THREE.Mesh(
+          new THREE.SphereGeometry(0.04, 6, 6),
+          guardMat
+        );
+        top.position.set(gx2, 0.27, gz2);
+        root.add(top);
+      }
+    }
+  }
+}
+
 function ruleGardenSculpture(grid: Grid, root: THREE.Group) {
   for (let gx = 0; gx < GRID; gx++) {
     for (let gy = 0; gy < GRID; gy++) {
@@ -1038,4 +1075,5 @@ export function applyEmergence(
   ruleWindmillHill(grid, root);
   ruleWatchtower(grid, root);
   ruleGardenSculpture(grid, root);
+  ruleGatekeeper(grid, root);
 }
