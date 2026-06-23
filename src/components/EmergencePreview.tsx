@@ -108,6 +108,11 @@ const PRESETS: Preset[] = [
     cells: [[3,3,"statue"]],
   },
   {
+    name: "水車小屋 (風車+池)",
+    desc: "ruleWatermill",
+    cells: [[3,3,"windmill"],[3,4,"pond"]],
+  },
+  {
     name: "全部盛り",
     desc: "全9種を配置",
     cells: [

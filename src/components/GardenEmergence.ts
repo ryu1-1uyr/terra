@@ -755,6 +755,40 @@ function ruleMonumentAura(grid: Grid, root: THREE.Group) {
   }
 }
 
+function ruleWatermill(grid: Grid, root: THREE.Group) {
+  for (let gx = 0; gx < GRID; gx++) {
+    for (let gy = 0; gy < GRID; gy++) {
+      if (grid[gx][gy]?.type !== "windmill") continue;
+      const adjPonds = neighbors(grid, gx, gy).filter(
+        (n) => n.cell.type === "pond"
+      );
+      if (adjPonds.length === 0) continue;
+      const [px, pz] = gpos(gx, gy);
+      for (const pond of adjPonds) {
+        const [px2, pz2] = gpos(pond.gx, pond.gy);
+        const mx = (px + px2) / 2;
+        const mz = (pz + pz2) / 2;
+        const isX = gx !== pond.gx;
+        const channel = new THREE.Mesh(
+          new THREE.BoxGeometry(isX ? 0.8 : 0.15, 0.02, isX ? 0.15 : 0.8),
+          new THREE.MeshStandardMaterial({
+            color: 0x3366aa,
+            emissive: 0x3366aa,
+            emissiveIntensity: 0.6,
+            transparent: true,
+            opacity: 0.5,
+          })
+        );
+        channel.position.set(mx, 0.015, mz);
+        root.add(channel);
+      }
+      const glow = new THREE.PointLight(0x4488cc, 0.4, 1.5, 2.5);
+      glow.position.set(px, 0.3, pz);
+      root.add(glow);
+    }
+  }
+}
+
 export function applyEmergence(
   objects: { type: ObjectType; gx: number; gy: number; growth: number }[],
   root: THREE.Group
@@ -789,4 +823,5 @@ export function applyEmergence(
   ruleLitWalkway(grid, root);
   ruleReflection(grid, root);
   ruleMonumentAura(grid, root);
+  ruleWatermill(grid, root);
 }
