@@ -755,6 +755,50 @@ function ruleMonumentAura(grid: Grid, root: THREE.Group) {
   }
 }
 
+function ruleGardenSculpture(grid: Grid, root: THREE.Group) {
+  for (let gx = 0; gx < GRID; gx++) {
+    for (let gy = 0; gy < GRID; gy++) {
+      if (grid[gx][gy]?.type !== "statue") continue;
+      const adjFlowers = neighbors(grid, gx, gy).filter(
+        (n) => n.cell.type === "flower"
+      );
+      if (adjFlowers.length === 0) continue;
+      const [px, pz] = gpos(gx, gy);
+      const wreathMat = new THREE.MeshStandardMaterial({
+        color: 0x44aa55,
+        emissive: 0x22aa33,
+        emissiveIntensity: 0.3,
+        roughness: 0.8,
+      });
+      const wreath = new THREE.Mesh(
+        new THREE.TorusGeometry(0.18, 0.03, 6, 12),
+        wreathMat
+      );
+      wreath.rotation.x = Math.PI / 2;
+      wreath.position.set(px, 0.12, pz);
+      root.add(wreath);
+      const colors = [0xff7ad1, 0xffd24a, 0x7ad1ff];
+      for (let i = 0; i < 5; i++) {
+        const bud = new THREE.Mesh(
+          new THREE.SphereGeometry(0.02, 4, 4),
+          new THREE.MeshStandardMaterial({
+            color: colors[i % colors.length],
+            emissive: colors[i % colors.length],
+            emissiveIntensity: 0.5,
+          })
+        );
+        const a = (i / 5) * Math.PI * 2;
+        bud.position.set(
+          px + Math.cos(a) * 0.18,
+          0.12,
+          pz + Math.sin(a) * 0.18
+        );
+        root.add(bud);
+      }
+    }
+  }
+}
+
 function ruleWatchtower(grid: Grid, root: THREE.Group) {
   for (let gx = 0; gx < GRID; gx++) {
     for (let gy = 0; gy < GRID; gy++) {
@@ -993,4 +1037,5 @@ export function applyEmergence(
   ruleCastleWall(grid, root);
   ruleWindmillHill(grid, root);
   ruleWatchtower(grid, root);
+  ruleGardenSculpture(grid, root);
 }
