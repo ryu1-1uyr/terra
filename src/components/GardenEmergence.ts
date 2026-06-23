@@ -755,6 +755,30 @@ function ruleMonumentAura(grid: Grid, root: THREE.Group) {
   }
 }
 
+function ruleWindmillHill(grid: Grid, root: THREE.Group) {
+  for (let gx = 0; gx < GRID; gx++) {
+    for (let gy = 0; gy < GRID; gy++) {
+      if (grid[gx][gy]?.type !== "windmill") continue;
+      const adjTrees = neighbors(grid, gx, gy, ADJ8).filter(
+        (n) => n.cell.type === "tree"
+      );
+      if (adjTrees.length === 0) continue;
+      const [px, pz] = gpos(gx, gy);
+      const hill = new THREE.Mesh(
+        new THREE.SphereGeometry(0.4, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2),
+        new THREE.MeshStandardMaterial({
+          color: 0x3a7a3a,
+          roughness: 0.95,
+          flatShading: true,
+        })
+      );
+      hill.position.set(px, 0.0, pz);
+      hill.receiveShadow = true;
+      root.add(hill);
+    }
+  }
+}
+
 function ruleCastleWall(grid: Grid, root: THREE.Group) {
   for (let gx = 0; gx < GRID; gx++) {
     for (let gy = 0; gy < GRID; gy++) {
@@ -934,4 +958,5 @@ export function applyEmergence(
   ruleLighthouseHarbor(grid, root);
   ruleSacredGrove(grid, root);
   ruleCastleWall(grid, root);
+  ruleWindmillHill(grid, root);
 }
