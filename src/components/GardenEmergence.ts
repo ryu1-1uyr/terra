@@ -755,6 +755,51 @@ function ruleMonumentAura(grid: Grid, root: THREE.Group) {
   }
 }
 
+function ruleRuins(grid: Grid, root: THREE.Group) {
+  for (let gx = 0; gx < GRID; gx++) {
+    for (let gy = 0; gy < GRID; gy++) {
+      if (grid[gx][gy]?.type !== "tower") continue;
+      const adj = neighbors(grid, gx, gy, ADJ8);
+      const types = new Set(adj.map((n) => n.cell.type));
+      if (!types.has("statue") || !types.has("tree") || !types.has("flower"))
+        continue;
+      const [px, pz] = gpos(gx, gy);
+      const moss = new THREE.Mesh(
+        new THREE.BoxGeometry(0.95, 0.01, 0.95),
+        new THREE.MeshStandardMaterial({
+          color: 0x1a3a1a,
+          roughness: 1,
+          transparent: true,
+          opacity: 0.5,
+        })
+      );
+      moss.position.set(px, 0.005, pz);
+      root.add(moss);
+      const runeMat = new THREE.MeshStandardMaterial({
+        color: 0x88aaff,
+        emissive: 0x88aaff,
+        emissiveIntensity: 2.0,
+        transparent: true,
+        opacity: 0.4,
+      });
+      const rune = new THREE.Mesh(
+        new THREE.TorusGeometry(0.35, 0.01, 4, 16),
+        runeMat
+      );
+      rune.rotation.x = Math.PI / 2;
+      rune.position.set(px, 0.02, pz);
+      root.add(rune);
+      const inner = new THREE.Mesh(
+        new THREE.TorusGeometry(0.2, 0.008, 4, 12),
+        runeMat
+      );
+      inner.rotation.x = Math.PI / 2;
+      inner.position.set(px, 0.02, pz);
+      root.add(inner);
+    }
+  }
+}
+
 function ruleWindValley(grid: Grid, root: THREE.Group) {
   for (let gx = 0; gx < GRID; gx++) {
     for (let gy = 0; gy < GRID; gy++) {
@@ -1309,4 +1354,5 @@ export function applyEmergence(
   ruleMagicGarden(grid, root);
   ruleCastleBanner(grid, root);
   ruleWindValley(grid, root);
+  ruleRuins(grid, root);
 }

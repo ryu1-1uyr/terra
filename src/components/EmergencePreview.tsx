@@ -108,6 +108,11 @@ const PRESETS: Preset[] = [
     cells: [[3,3,"statue"]],
   },
   {
+    name: "遺跡 (塔+像+木+花)",
+    desc: "ruleRuins",
+    cells: [[3,3,"tower"],[3,4,"statue"],[4,3,"tree"],[4,4,"flower"]],
+  },
+  {
     name: "風の谷 (風車+花+木)",
     desc: "ruleWindValley",
     cells: [[3,3,"windmill"],[3,4,"flower"],[4,3,"tree"]],
