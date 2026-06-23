@@ -755,6 +755,39 @@ function ruleMonumentAura(grid: Grid, root: THREE.Group) {
   }
 }
 
+function ruleWatchtower(grid: Grid, root: THREE.Group) {
+  for (let gx = 0; gx < GRID; gx++) {
+    for (let gy = 0; gy < GRID; gy++) {
+      if (grid[gx][gy]?.type !== "tower") continue;
+      const adjPonds = neighbors(grid, gx, gy).filter(
+        (n) => n.cell.type === "pond"
+      );
+      if (adjPonds.length === 0) continue;
+      const [px, pz] = gpos(gx, gy);
+      for (const pond of adjPonds) {
+        const [px2, pz2] = gpos(pond.gx, pond.gy);
+        const dx = px2 - px;
+        const dz = pz2 - pz;
+        const beamLen = 0.6;
+        const beam = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.015, 0.04, beamLen),
+          new THREE.MeshStandardMaterial({
+            color: 0xffd700,
+            emissive: 0xffd700,
+            emissiveIntensity: 2.0,
+            transparent: true,
+            opacity: 0.35,
+          })
+        );
+        beam.position.set(px + dx * 0.4, 0.8, pz + dz * 0.4);
+        beam.rotation.z = Math.atan2(dz, dx) + Math.PI / 2;
+        beam.rotation.x = Math.PI / 4;
+        root.add(beam);
+      }
+    }
+  }
+}
+
 function ruleWindmillHill(grid: Grid, root: THREE.Group) {
   for (let gx = 0; gx < GRID; gx++) {
     for (let gy = 0; gy < GRID; gy++) {
@@ -959,4 +992,5 @@ export function applyEmergence(
   ruleSacredGrove(grid, root);
   ruleCastleWall(grid, root);
   ruleWindmillHill(grid, root);
+  ruleWatchtower(grid, root);
 }
