@@ -755,6 +755,34 @@ function ruleMonumentAura(grid: Grid, root: THREE.Group) {
   }
 }
 
+function rulePrayerLight(grid: Grid, root: THREE.Group) {
+  for (let gx = 0; gx < GRID; gx++) {
+    for (let gy = 0; gy < GRID; gy++) {
+      if (grid[gx][gy]?.type !== "lamp") continue;
+      const adjShrines = neighbors(grid, gx, gy, ADJ8).filter(
+        (n) => n.cell.type === "shrine"
+      );
+      if (adjShrines.length === 0) continue;
+      const [px, pz] = gpos(gx, gy);
+      const sacredLight = new THREE.PointLight(0x44ffaa, 0.8, 2.0, 2.0);
+      sacredLight.position.set(px, 0.5, pz);
+      root.add(sacredLight);
+      const aura = new THREE.Mesh(
+        new THREE.SphereGeometry(0.06, 8, 8),
+        new THREE.MeshStandardMaterial({
+          color: 0x000000,
+          emissive: 0x44ffaa,
+          emissiveIntensity: 3.0,
+          transparent: true,
+          opacity: 0.6,
+        })
+      );
+      aura.position.set(px, 0.5, pz);
+      root.add(aura);
+    }
+  }
+}
+
 function ruleGatekeeper(grid: Grid, root: THREE.Group) {
   for (let gx = 0; gx < GRID; gx++) {
     for (let gy = 0; gy < GRID; gy++) {
@@ -1076,4 +1104,5 @@ export function applyEmergence(
   ruleWatchtower(grid, root);
   ruleGardenSculpture(grid, root);
   ruleGatekeeper(grid, root);
+  rulePrayerLight(grid, root);
 }
