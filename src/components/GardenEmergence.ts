@@ -755,6 +755,47 @@ function ruleMonumentAura(grid: Grid, root: THREE.Group) {
   }
 }
 
+function ruleCastleBanner(grid: Grid, root: THREE.Group) {
+  const visited = new Set<string>();
+  for (let gx = 0; gx < GRID; gx++) {
+    for (let gy = 0; gy < GRID; gy++) {
+      if (grid[gx][gy]?.type !== "tower") continue;
+      const adj = neighbors(grid, gx, gy);
+      const adjTowers = adj.filter((n) => n.cell.type === "tower");
+      const adjHouses = adj.filter((n) => n.cell.type === "house");
+      if (adjTowers.length === 0 || adjHouses.length === 0) continue;
+      for (const t of adjTowers) {
+        const key = [
+          `${Math.min(gx, t.gx)},${Math.min(gy, t.gy)}`,
+          `${Math.max(gx, t.gx)},${Math.max(gy, t.gy)}`,
+        ].join("-");
+        if (visited.has(key)) continue;
+        visited.add(key);
+        const [p1x, p1z] = gpos(gx, gy);
+        const [p2x, p2z] = gpos(t.gx, t.gy);
+        const mx = (p1x + p2x) / 2;
+        const mz = (p1z + p2z) / 2;
+        const bannerColors = [0xff3333, 0x3333ff, 0xffcc00];
+        const col = bannerColors[(gx + gy) % bannerColors.length];
+        const flag = new THREE.Mesh(
+          new THREE.PlaneGeometry(0.15, 0.2),
+          new THREE.MeshStandardMaterial({
+            color: col,
+            emissive: col,
+            emissiveIntensity: 0.3,
+            side: THREE.DoubleSide,
+          })
+        );
+        flag.position.set(mx, 1.0, mz);
+        const dx = p2x - p1x;
+        const dz = p2z - p1z;
+        flag.rotation.y = Math.atan2(dz, dx);
+        root.add(flag);
+      }
+    }
+  }
+}
+
 function ruleMagicGarden(grid: Grid, root: THREE.Group) {
   for (let gx = 0; gx < GRID; gx++) {
     for (let gy = 0; gy < GRID; gy++) {
@@ -1234,4 +1275,5 @@ export function applyEmergence(
   ruleHotSpring(grid, root);
   ruleFestival(grid, root);
   ruleMagicGarden(grid, root);
+  ruleCastleBanner(grid, root);
 }
