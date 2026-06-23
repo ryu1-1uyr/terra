@@ -755,6 +755,43 @@ function ruleMonumentAura(grid: Grid, root: THREE.Group) {
   }
 }
 
+function ruleHotSpring(grid: Grid, root: THREE.Group) {
+  for (let gx = 0; gx < GRID; gx++) {
+    for (let gy = 0; gy < GRID; gy++) {
+      if (grid[gx][gy]?.type !== "pond") continue;
+      const adj = neighbors(grid, gx, gy, ADJ8);
+      const hasHouse = adj.some((n) => n.cell.type === "house");
+      const hasLamp = adj.some((n) => n.cell.type === "lamp");
+      if (!hasHouse || !hasLamp) continue;
+      const [px, pz] = gpos(gx, gy);
+      const steamMat = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        emissive: 0xffffff,
+        emissiveIntensity: 0.5,
+        transparent: true,
+        opacity: 0.2,
+      });
+      for (let i = 0; i < 6; i++) {
+        const steam = new THREE.Mesh(
+          new THREE.SphereGeometry(0.05 + (i % 3) * 0.02, 6, 6),
+          steamMat
+        );
+        const a = (i / 6) * Math.PI * 2 + gy;
+        const r = 0.1 + (i % 2) * 0.08;
+        steam.position.set(
+          px + Math.cos(a) * r,
+          0.15 + i * 0.08,
+          pz + Math.sin(a) * r
+        );
+        root.add(steam);
+      }
+      const warmLight = new THREE.PointLight(0xff8844, 0.3, 1.5, 2.0);
+      warmLight.position.set(px, 0.2, pz);
+      root.add(warmLight);
+    }
+  }
+}
+
 function ruleWeatherVane(grid: Grid, root: THREE.Group) {
   for (let gx = 0; gx < GRID; gx++) {
     for (let gy = 0; gy < GRID; gy++) {
@@ -1137,4 +1174,5 @@ export function applyEmergence(
   ruleGatekeeper(grid, root);
   rulePrayerLight(grid, root);
   ruleWeatherVane(grid, root);
+  ruleHotSpring(grid, root);
 }

@@ -108,6 +108,11 @@ const PRESETS: Preset[] = [
     cells: [[3,3,"statue"]],
   },
   {
+    name: "温泉街 (池+家+灯台)",
+    desc: "ruleHotSpring",
+    cells: [[3,3,"pond"],[3,4,"house"],[4,3,"lamp"]],
+  },
+  {
     name: "風見鶏 (風車+家)",
     desc: "ruleWeatherVane",
     cells: [[3,3,"house"],[3,4,"windmill"]],
