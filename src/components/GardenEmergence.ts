@@ -755,6 +755,45 @@ function ruleMonumentAura(grid: Grid, root: THREE.Group) {
   }
 }
 
+function ruleParadise(grid: Grid, root: THREE.Group) {
+  for (let gx = 0; gx < GRID; gx++) {
+    for (let gy = 0; gy < GRID; gy++) {
+      const cell = grid[gx][gy];
+      if (!cell) continue;
+      const adj = neighbors(grid, gx, gy, ADJ8);
+      const allTypes = new Set([cell.type, ...adj.map((n) => n.cell.type)]);
+      if (
+        !allTypes.has("flower") ||
+        !allTypes.has("tree") ||
+        !allTypes.has("pond") ||
+        !allTypes.has("house")
+      )
+        continue;
+      if (cell.type !== "pond") continue;
+      const [px, pz] = gpos(gx, gy);
+      const rainbowColors = [
+        0xff0000, 0xff7700, 0xffff00, 0x00ff00, 0x0077ff, 0x0000ff, 0x8b00ff,
+      ];
+      for (let i = 0; i < rainbowColors.length; i++) {
+        const r = 0.4 + i * 0.03;
+        const arc = new THREE.Mesh(
+          new THREE.TorusGeometry(r, 0.012, 4, 16, Math.PI),
+          new THREE.MeshStandardMaterial({
+            color: rainbowColors[i],
+            emissive: rainbowColors[i],
+            emissiveIntensity: 0.6,
+            transparent: true,
+            opacity: 0.5,
+          })
+        );
+        arc.position.set(px, 0.05, pz);
+        root.add(arc);
+      }
+      break;
+    }
+  }
+}
+
 function ruleRuins(grid: Grid, root: THREE.Group) {
   for (let gx = 0; gx < GRID; gx++) {
     for (let gy = 0; gy < GRID; gy++) {
@@ -1355,4 +1394,5 @@ export function applyEmergence(
   ruleCastleBanner(grid, root);
   ruleWindValley(grid, root);
   ruleRuins(grid, root);
+  ruleParadise(grid, root);
 }
