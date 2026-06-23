@@ -755,6 +755,38 @@ function ruleMonumentAura(grid: Grid, root: THREE.Group) {
   }
 }
 
+function ruleWindValley(grid: Grid, root: THREE.Group) {
+  for (let gx = 0; gx < GRID; gx++) {
+    for (let gy = 0; gy < GRID; gy++) {
+      if (grid[gx][gy]?.type !== "windmill") continue;
+      const adj = neighbors(grid, gx, gy, ADJ8);
+      const hasFlower = adj.some((n) => n.cell.type === "flower");
+      const hasTree = adj.some((n) => n.cell.type === "tree");
+      if (!hasFlower || !hasTree) continue;
+      const [px, pz] = gpos(gx, gy);
+      const windMat = new THREE.MeshStandardMaterial({
+        color: 0xaaddff,
+        emissive: 0xaaddff,
+        emissiveIntensity: 0.3,
+        transparent: true,
+        opacity: 0.15,
+        side: THREE.DoubleSide,
+      });
+      for (let i = 0; i < 3; i++) {
+        const curve = new THREE.Mesh(
+          new THREE.PlaneGeometry(0.8, 0.06),
+          windMat
+        );
+        const offset = (i - 1) * 0.2;
+        curve.position.set(px + offset, 0.2 + i * 0.12, pz);
+        curve.rotation.x = -0.3;
+        curve.rotation.y = 0.4 + i * 0.3;
+        root.add(curve);
+      }
+    }
+  }
+}
+
 function ruleCastleBanner(grid: Grid, root: THREE.Group) {
   const visited = new Set<string>();
   for (let gx = 0; gx < GRID; gx++) {
@@ -1276,4 +1308,5 @@ export function applyEmergence(
   ruleFestival(grid, root);
   ruleMagicGarden(grid, root);
   ruleCastleBanner(grid, root);
+  ruleWindValley(grid, root);
 }
