@@ -755,6 +755,30 @@ function ruleMonumentAura(grid: Grid, root: THREE.Group) {
   }
 }
 
+function ruleFestival(grid: Grid, root: THREE.Group) {
+  for (let gx = 0; gx < GRID; gx++) {
+    for (let gy = 0; gy < GRID; gy++) {
+      if (grid[gx][gy]?.type !== "shrine") continue;
+      const adj = neighbors(grid, gx, gy, ADJ8);
+      const hasLamp = adj.some((n) => n.cell.type === "lamp");
+      const hasHouse = adj.some((n) => n.cell.type === "house");
+      if (!hasLamp || !hasHouse) continue;
+      const [px, pz] = gpos(gx, gy);
+      const houses = adj.filter((n) => n.cell.type === "house");
+      for (const h of houses) {
+        const [hx, hz] = gpos(h.gx, h.gy);
+        const count = 3;
+        for (let i = 0; i < count; i++) {
+          const t = (i + 1) / (count + 1);
+          const lx = px + (hx - px) * t;
+          const lz = pz + (hz - pz) * t;
+          addPaperLantern(root, lx, lz);
+        }
+      }
+    }
+  }
+}
+
 function ruleHotSpring(grid: Grid, root: THREE.Group) {
   for (let gx = 0; gx < GRID; gx++) {
     for (let gy = 0; gy < GRID; gy++) {
@@ -1175,4 +1199,5 @@ export function applyEmergence(
   rulePrayerLight(grid, root);
   ruleWeatherVane(grid, root);
   ruleHotSpring(grid, root);
+  ruleFestival(grid, root);
 }
