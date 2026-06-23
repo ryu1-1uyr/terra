@@ -755,6 +755,39 @@ function ruleMonumentAura(grid: Grid, root: THREE.Group) {
   }
 }
 
+function ruleMagicGarden(grid: Grid, root: THREE.Group) {
+  for (let gx = 0; gx < GRID; gx++) {
+    for (let gy = 0; gy < GRID; gy++) {
+      if (grid[gx][gy]?.type !== "pond") continue;
+      const adj = neighbors(grid, gx, gy, ADJ8);
+      const hasFlower = adj.some((n) => n.cell.type === "flower");
+      const hasStatue = adj.some((n) => n.cell.type === "statue");
+      if (!hasFlower || !hasStatue) continue;
+      const [px, pz] = gpos(gx, gy);
+      const fireflyMat = new THREE.PointsMaterial({
+        color: 0x88ffdd,
+        size: 0.06,
+        transparent: true,
+        opacity: 0.8,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const count = 8;
+      const positions = new Float32Array(count * 3);
+      for (let i = 0; i < count; i++) {
+        const a = (i / count) * Math.PI * 2;
+        const r = 0.15 + (i % 3) * 0.1;
+        positions[i * 3] = px + Math.cos(a) * r;
+        positions[i * 3 + 1] = 0.1 + (i % 4) * 0.1;
+        positions[i * 3 + 2] = pz + Math.sin(a) * r;
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+      root.add(new THREE.Points(geo, fireflyMat));
+    }
+  }
+}
+
 function ruleFestival(grid: Grid, root: THREE.Group) {
   for (let gx = 0; gx < GRID; gx++) {
     for (let gy = 0; gy < GRID; gy++) {
@@ -1200,4 +1233,5 @@ export function applyEmergence(
   ruleWeatherVane(grid, root);
   ruleHotSpring(grid, root);
   ruleFestival(grid, root);
+  ruleMagicGarden(grid, root);
 }
