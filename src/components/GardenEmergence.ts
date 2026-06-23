@@ -755,6 +755,43 @@ function ruleMonumentAura(grid: Grid, root: THREE.Group) {
   }
 }
 
+function ruleCastleWall(grid: Grid, root: THREE.Group) {
+  for (let gx = 0; gx < GRID; gx++) {
+    for (let gy = 0; gy < GRID; gy++) {
+      if (grid[gx][gy]?.type !== "tower") continue;
+      const adjHouses = neighbors(grid, gx, gy).filter(
+        (n) => n.cell.type === "house"
+      );
+      if (adjHouses.length === 0) continue;
+      const [px, pz] = gpos(gx, gy);
+      const wallMat = new THREE.MeshStandardMaterial({
+        color: 0x6a6a7a,
+        roughness: 0.85,
+        metalness: 0.1,
+      });
+      for (const h of adjHouses) {
+        const [hx, hz] = gpos(h.gx, h.gy);
+        const mx = (px + hx) / 2;
+        const mz = (pz + hz) / 2;
+        const isX = gx !== h.gx;
+        const wall = new THREE.Mesh(
+          new THREE.BoxGeometry(isX ? 0.7 : 0.08, 0.35, isX ? 0.08 : 0.7),
+          wallMat
+        );
+        wall.position.set(mx, 0.175, mz);
+        wall.castShadow = true;
+        root.add(wall);
+        const merlon = new THREE.Mesh(
+          new THREE.BoxGeometry(0.1, 0.08, 0.1),
+          wallMat
+        );
+        merlon.position.set(mx, 0.39, mz);
+        root.add(merlon);
+      }
+    }
+  }
+}
+
 function ruleSacredGrove(grid: Grid, root: THREE.Group) {
   for (let gx = 0; gx < GRID; gx++) {
     for (let gy = 0; gy < GRID; gy++) {
@@ -896,4 +933,5 @@ export function applyEmergence(
   ruleWatermill(grid, root);
   ruleLighthouseHarbor(grid, root);
   ruleSacredGrove(grid, root);
+  ruleCastleWall(grid, root);
 }
