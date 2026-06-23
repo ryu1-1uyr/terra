@@ -755,6 +755,37 @@ function ruleMonumentAura(grid: Grid, root: THREE.Group) {
   }
 }
 
+function ruleWeatherVane(grid: Grid, root: THREE.Group) {
+  for (let gx = 0; gx < GRID; gx++) {
+    for (let gy = 0; gy < GRID; gy++) {
+      if (grid[gx][gy]?.type !== "house") continue;
+      const adjWindmills = neighbors(grid, gx, gy, ADJ8).filter(
+        (n) => n.cell.type === "windmill"
+      );
+      if (adjWindmills.length === 0) continue;
+      const [px, pz] = gpos(gx, gy);
+      const vaneMat = new THREE.MeshStandardMaterial({
+        color: 0xcc8833,
+        roughness: 0.5,
+        metalness: 0.4,
+      });
+      const pole = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.01, 0.01, 0.15),
+        vaneMat
+      );
+      pole.position.set(px, 0.52, pz);
+      root.add(pole);
+      const arrow = new THREE.Mesh(
+        new THREE.ConeGeometry(0.03, 0.1, 4),
+        vaneMat
+      );
+      arrow.position.set(px + 0.03, 0.58, pz);
+      arrow.rotation.z = -Math.PI / 2;
+      root.add(arrow);
+    }
+  }
+}
+
 function rulePrayerLight(grid: Grid, root: THREE.Group) {
   for (let gx = 0; gx < GRID; gx++) {
     for (let gy = 0; gy < GRID; gy++) {
@@ -1105,4 +1136,5 @@ export function applyEmergence(
   ruleGardenSculpture(grid, root);
   ruleGatekeeper(grid, root);
   rulePrayerLight(grid, root);
+  ruleWeatherVane(grid, root);
 }
