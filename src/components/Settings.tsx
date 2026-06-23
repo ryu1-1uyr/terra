@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import * as THREE from "three";
 import { type ObjectType } from "./GardenObjects";
 import { buildGrownObject } from "./GardenGrowth";
+import { EmergencePreview } from "./EmergencePreview";
 import "./Settings.css";
 
 export interface GardenSettings {
@@ -208,6 +209,12 @@ export function Settings() {
             />
             <span className="toggle-label">PC 起動時に自動で開く</span>
           </label>
+        </section>
+      )}
+
+      {import.meta.env.DEV && (
+        <section className="settings-section">
+          <EmergencePreview />
         </section>
       )}
 
