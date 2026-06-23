@@ -7,6 +7,7 @@ import { type ObjectType } from "./GardenObjects";
 import { buildGrownObject } from "./GardenGrowth";
 import { loadGardenSettings, type GardenSettings } from "./Settings";
 import { GRID, gpos } from "./garden/grid";
+import { createGardenRenderer, buildGridTiles } from "./garden/scene";
 import "./Garden.css";
 
 interface GardenObject {
@@ -350,13 +351,7 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[], init
   let animFrameId = 0;
 
   // --- Renderer ---
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.4;
+  const renderer = createGardenRenderer(canvas);
 
   // --- Scene ---
   const scene = new THREE.Scene();
@@ -442,25 +437,7 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[], init
   baseMesh.receiveShadow = true;
   root.add(baseMesh);
 
-  const tiles: THREE.Mesh[] = [];
-  const tileGeo = new THREE.BoxGeometry(0.96, 0.18, 0.96);
-  for (let gx = 0; gx < GRID; gx++) {
-    for (let gy = 0; gy < GRID; gy++) {
-      const even = (gx + gy) % 2 === 0;
-      const m = new THREE.MeshStandardMaterial({
-        color: even ? 0x2e3d55 : 0x243050,
-        roughness: 0.92,
-        metalness: 0,
-      });
-      const t = new THREE.Mesh(tileGeo, m);
-      const [x, z] = gpos(gx, gy);
-      t.position.set(x, -0.09, z);
-      t.receiveShadow = true;
-      t.userData = { gx, gz: gy };
-      root.add(t);
-      tiles.push(t);
-    }
-  }
+  const tiles = buildGridTiles(root, GRID);
 
   // --- Tile hover ---
   let hoveredTile: THREE.Mesh | null = null;

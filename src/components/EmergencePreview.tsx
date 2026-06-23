@@ -4,6 +4,7 @@ import { type ObjectType, ALL_OBJECT_TYPES } from "./GardenObjects";
 import { buildGrownObject } from "./GardenGrowth";
 import { applyEmergence } from "./garden/emergence";
 import { GRID, gpos } from "./garden/grid";
+import { createGardenRenderer, buildGridTiles } from "./garden/scene";
 import "./EmergencePreview.css";
 
 const TYPE_LABELS: Record<ObjectType, string> = {
@@ -234,11 +235,7 @@ export function EmergencePreview() {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
-    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.4;
-    renderer.shadowMap.enabled = true;
+    const renderer = createGardenRenderer(canvas);
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0e1220);
@@ -271,19 +268,7 @@ export function EmergencePreview() {
     base.receiveShadow = true;
     scene.add(base);
 
-    const tileGeo = new THREE.BoxGeometry(0.96, 0.18, 0.96);
-    for (let gx = 0; gx < GRID; gx++) {
-      for (let gy = 0; gy < GRID; gy++) {
-        const even = (gx + gy) % 2 === 0;
-        const t = new THREE.Mesh(tileGeo, new THREE.MeshStandardMaterial({
-          color: even ? 0x2e3d55 : 0x243050, roughness: 0.92,
-        }));
-        const [px, pz] = gpos(gx, gy);
-        t.position.set(px, -0.09, pz);
-        t.receiveShadow = true;
-        scene.add(t);
-      }
-    }
+    buildGridTiles(scene, GRID);
 
     const objGroup = new THREE.Group();
     scene.add(objGroup);
