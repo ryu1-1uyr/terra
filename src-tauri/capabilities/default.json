@@ -8,6 +8,9 @@
     "opener:default",
     "updater:default",
     "process:allow-restart",
-    "process:allow-exit"
+    "process:allow-exit",
+    "autostart:allow-enable",
+    "autostart:allow-disable",
+    "autostart:allow-is-enabled"
   ]
 }

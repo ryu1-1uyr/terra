@@ -43,6 +43,7 @@ function saveGardenSettings(s: GardenSettings) {
 
 export function Settings() {
   const [settings, setSettings] = useState<GardenSettings>(loadGardenSettings);
+  const [autostart, setAutostart] = useState<boolean | null>(null);
 
   const update = useCallback(
     (patch: Partial<GardenSettings>) => {
@@ -63,6 +64,29 @@ export function Settings() {
       setVersion("dev");
     }
   }, []);
+
+  useEffect(() => {
+    if (!(window as any).__TAURI_INTERNALS__) return;
+    import("@tauri-apps/plugin-autostart").then(({ isEnabled }) =>
+      isEnabled().then(setAutostart),
+    ).catch(() => {});
+  }, []);
+
+  const toggleAutostart = async () => {
+    try {
+      const { enable, disable, isEnabled } = await import(
+        "@tauri-apps/plugin-autostart"
+      );
+      if (autostart) {
+        await disable();
+      } else {
+        await enable();
+      }
+      setAutostart(await isEnabled());
+    } catch {
+      // plugin unavailable
+    }
+  };
 
   return (
     <div className="settings">
@@ -172,6 +196,20 @@ export function Settings() {
           <span className="slider-value">{settings.orbGlow.toFixed(1)}</span>
         </label>
       </section>
+
+      {autostart != null && (
+        <section className="settings-section">
+          <h3>一般</h3>
+          <label className="setting-toggle">
+            <input
+              type="checkbox"
+              checked={autostart}
+              onChange={toggleAutostart}
+            />
+            <span className="toggle-label">PC 起動時に自動で開く</span>
+          </label>
+        </section>
+      )}
 
       <section className="settings-section">
         <h3>アプリ情報</h3>
