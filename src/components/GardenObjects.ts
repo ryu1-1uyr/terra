@@ -11,6 +11,11 @@ export type ObjectType =
   | "pond"
   | "statue";
 
+export const ALL_OBJECT_TYPES: ObjectType[] = [
+  "house", "tower", "tree", "flower", "windmill",
+  "shrine", "lamp", "pond", "statue",
+];
+
 export function createObjectMesh(
   type: ObjectType,
   gx: number,

@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import * as THREE from "three";
-import { type ObjectType } from "./GardenObjects";
+import { ALL_OBJECT_TYPES } from "./GardenObjects";
 import { buildGrownObject } from "./GardenGrowth";
 import { EmergencePreview } from "./EmergencePreview";
+import { gpos } from "./garden/grid";
 import "./Settings.css";
 
 export interface GardenSettings {
@@ -243,13 +244,8 @@ export function Settings() {
   );
 }
 
-const ALL_TYPES: ObjectType[] = [
-  "house", "tower", "tree", "flower", "windmill",
-  "shrine", "lamp", "pond", "statue",
-];
 
 const PREVIEW_GRID = 5;
-const PREVIEW_HALF = (PREVIEW_GRID - 1) / 2;
 
 const OBJ_POSITIONS: [number, number][] = [
   [0, 0], [1, 0], [2, 0],
@@ -311,7 +307,8 @@ function SettingsPreview({ settings }: { settings: GardenSettings }) {
         const t = new THREE.Mesh(tileGeo, new THREE.MeshStandardMaterial({
           color: even ? 0x2e3d55 : 0x243050, roughness: 0.92,
         }));
-        t.position.set(x - PREVIEW_HALF, -0.05, z - PREVIEW_HALF);
+        const [px, pz] = gpos(x, z, PREVIEW_GRID);
+        t.position.set(px, -0.05, pz);
         t.receiveShadow = true;
         scene.add(t);
       }
@@ -402,12 +399,13 @@ function SettingsPreview({ settings }: { settings: GardenSettings }) {
     }
     s.animators.length = 0;
 
-    for (let i = 0; i < ALL_TYPES.length; i++) {
+    for (let i = 0; i < ALL_OBJECT_TYPES.length; i++) {
       const [gx, gz] = OBJ_POSITIONS[i];
       const { group, animator } = buildGrownObject({
-        type: ALL_TYPES[i], gx, gy: gz, growth,
+        type: ALL_OBJECT_TYPES[i], gx, gy: gz, growth,
       });
-      group.position.set(gx - PREVIEW_HALF, 0, gz - PREVIEW_HALF);
+      const [px, pz] = gpos(gx, gz, PREVIEW_GRID);
+      group.position.set(px, 0, pz);
       s.objContainer.add(group);
       if (animator) s.animators.push(animator);
     }

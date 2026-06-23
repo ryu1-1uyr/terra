@@ -1,14 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import * as THREE from "three";
-import { type ObjectType } from "./GardenObjects";
+import { type ObjectType, ALL_OBJECT_TYPES } from "./GardenObjects";
 import { buildGrownObject } from "./GardenGrowth";
-import { applyEmergence } from "./GardenEmergence";
+import { applyEmergence } from "./garden/emergence";
+import { GRID, gpos } from "./garden/grid";
 import "./EmergencePreview.css";
-
-const ALL_TYPES: ObjectType[] = [
-  "house", "tower", "tree", "flower", "windmill",
-  "shrine", "lamp", "pond", "statue",
-];
 
 const TYPE_LABELS: Record<ObjectType, string> = {
   house: "家", tower: "塔", tree: "木", flower: "花", windmill: "風車",
@@ -20,8 +16,6 @@ const TYPE_COLORS: Record<ObjectType, string> = {
   windmill: "#d4a630", shrine: "#cc3333", lamp: "#ffe8c2", pond: "#4488cc",
   statue: "#b6ff3f",
 };
-
-const GRID = 8;
 
 type CellState = ObjectType | null;
 
@@ -277,7 +271,6 @@ export function EmergencePreview() {
     base.receiveShadow = true;
     scene.add(base);
 
-    const HALF = (GRID - 1) / 2;
     const tileGeo = new THREE.BoxGeometry(0.96, 0.18, 0.96);
     for (let gx = 0; gx < GRID; gx++) {
       for (let gy = 0; gy < GRID; gy++) {
@@ -285,7 +278,8 @@ export function EmergencePreview() {
         const t = new THREE.Mesh(tileGeo, new THREE.MeshStandardMaterial({
           color: even ? 0x2e3d55 : 0x243050, roughness: 0.92,
         }));
-        t.position.set(gx - HALF, -0.09, gy - HALF);
+        const [px, pz] = gpos(gx, gy);
+        t.position.set(px, -0.09, pz);
         t.receiveShadow = true;
         scene.add(t);
       }
@@ -344,7 +338,6 @@ export function EmergencePreview() {
     while (s.emergenceGroup.children.length) s.emergenceGroup.remove(s.emergenceGroup.children[0]);
     s.animators.length = 0;
 
-    const HALF = (GRID - 1) / 2;
     const objects: { type: ObjectType; gx: number; gy: number; growth: number }[] = [];
 
     for (let gx = 0; gx < GRID; gx++) {
@@ -354,7 +347,8 @@ export function EmergencePreview() {
         const { group, animator } = buildGrownObject({
           type: cell, gx, gy, growth: gr,
         });
-        group.position.set(gx - HALF, 0, gy - HALF);
+        const [px, pz] = gpos(gx, gy);
+        group.position.set(px, 0, pz);
         s.objGroup.add(group);
         if (animator) s.animators.push(animator);
         objects.push({ type: cell, gx, gy, growth: gr });
@@ -404,7 +398,7 @@ export function EmergencePreview() {
       </div>
 
       <div className="ep-toolbar">
-        {ALL_TYPES.map(type => (
+        {ALL_OBJECT_TYPES.map(type => (
           <button
             key={type}
             className={`ep-tool-btn ${selectedType === type ? "active" : ""}`}

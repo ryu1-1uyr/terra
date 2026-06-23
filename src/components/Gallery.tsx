@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { invoke } from "../mock-invoke";
 import * as THREE from "three";
-import { applyEmergence } from "./GardenEmergence";
+import { applyEmergence } from "./garden/emergence";
 import { createObjectMesh, type ObjectType } from "./GardenObjects";
 import "./Gallery.css";
 

@@ -2,10 +2,11 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { invoke } from "../mock-invoke";
 import { listen } from "@tauri-apps/api/event";
 import * as THREE from "three";
-import { applyEmergence } from "./GardenEmergence";
+import { applyEmergence } from "./garden/emergence";
 import { type ObjectType } from "./GardenObjects";
 import { buildGrownObject } from "./GardenGrowth";
 import { loadGardenSettings, type GardenSettings } from "./Settings";
+import { GRID, gpos } from "./garden/grid";
 import "./Garden.css";
 
 interface GardenObject {
@@ -31,12 +32,6 @@ interface InventoryItem {
   item_variant: string | null;
   obtained_at: string;
   placed: boolean;
-}
-
-const GRID = 8;
-const HALF = (GRID - 1) / 2;
-function gpos(gx: number, gy: number): [number, number] {
-  return [gx - HALF, gy - HALF];
 }
 
 function placedToGardenObjects(placed: PlacedObject[]): GardenObject[] {
