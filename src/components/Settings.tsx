@@ -59,14 +59,7 @@ export function Settings() {
     []
   );
 
-  const [version, setVersion] = useState("");
-  useEffect(() => {
-    try {
-      setVersion(__APP_VERSION__ ?? "dev");
-    } catch {
-      setVersion("dev");
-    }
-  }, []);
+  const version = __APP_VERSION__;
 
   useEffect(() => {
     if (!(window as any).__TAURI_INTERNALS__) return;
