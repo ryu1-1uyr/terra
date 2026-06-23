@@ -755,6 +755,55 @@ function ruleMonumentAura(grid: Grid, root: THREE.Group) {
   }
 }
 
+function ruleLotusGarden(grid: Grid, root: THREE.Group) {
+  const clusters = findClusters(grid, "pond");
+  for (const cluster of clusters) {
+    if (cluster.length < 3) continue;
+    for (const [cx, cy] of cluster) {
+      const [px, pz] = gpos(cx, cy);
+      const water = new THREE.Mesh(
+        new THREE.BoxGeometry(0.96, 0.01, 0.96),
+        new THREE.MeshStandardMaterial({
+          color: 0x2255aa,
+          emissive: 0x224488,
+          emissiveIntensity: 0.4,
+          transparent: true,
+          opacity: 0.4,
+        })
+      );
+      water.position.set(px, 0.025, pz);
+      root.add(water);
+    }
+    for (let i = 0; i < cluster.length; i++) {
+      const [cx, cy] = cluster[i];
+      const [px, pz] = gpos(cx, cy);
+      if (i % 2 === 0) {
+        const pad = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.12, 0.12, 0.01, 8),
+          new THREE.MeshStandardMaterial({
+            color: 0x33aa44,
+            roughness: 0.8,
+          })
+        );
+        const ox = ((cx * 3 + cy * 7) % 5 - 2) * 0.08;
+        const oz = ((cx * 7 + cy * 3) % 5 - 2) * 0.08;
+        pad.position.set(px + ox, 0.04, pz + oz);
+        root.add(pad);
+        const bloom = new THREE.Mesh(
+          new THREE.SphereGeometry(0.04, 6, 4, 0, Math.PI * 2, 0, Math.PI / 2),
+          new THREE.MeshStandardMaterial({
+            color: 0xff88aa,
+            emissive: 0xff88aa,
+            emissiveIntensity: 0.5,
+          })
+        );
+        bloom.position.set(px + ox, 0.06, pz + oz);
+        root.add(bloom);
+      }
+    }
+  }
+}
+
 function ruleCathedral(grid: Grid, root: THREE.Group) {
   const clusters = findClusters(grid, "tower");
   for (const cluster of clusters) {
@@ -1506,4 +1555,5 @@ export function applyEmergence(
   ruleParadise(grid, root);
   ruleFortress(grid, root);
   ruleCathedral(grid, root);
+  ruleLotusGarden(grid, root);
 }
