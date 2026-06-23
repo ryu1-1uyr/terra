@@ -755,6 +755,40 @@ function ruleMonumentAura(grid: Grid, root: THREE.Group) {
   }
 }
 
+function ruleLighthouseHarbor(grid: Grid, root: THREE.Group) {
+  for (let gx = 0; gx < GRID; gx++) {
+    for (let gy = 0; gy < GRID; gy++) {
+      if (grid[gx][gy]?.type !== "lamp") continue;
+      const adjPonds = neighbors(grid, gx, gy).filter(
+        (n) => n.cell.type === "pond"
+      );
+      if (adjPonds.length === 0) continue;
+      const [px, pz] = gpos(gx, gy);
+      for (const pond of adjPonds) {
+        const [px2, pz2] = gpos(pond.gx, pond.gy);
+        const stripMat = new THREE.MeshStandardMaterial({
+          color: 0xff8833,
+          emissive: 0xff8833,
+          emissiveIntensity: 0.8,
+          transparent: true,
+          opacity: 0.3,
+        });
+        for (let i = 0; i < 3; i++) {
+          const t = 0.3 + i * 0.2;
+          const sx = px + (px2 - px) * t;
+          const sz = pz + (pz2 - pz) * t;
+          const strip = new THREE.Mesh(
+            new THREE.BoxGeometry(0.06, 0.005, 0.06),
+            stripMat
+          );
+          strip.position.set(sx, 0.04, sz);
+          root.add(strip);
+        }
+      }
+    }
+  }
+}
+
 function ruleWatermill(grid: Grid, root: THREE.Group) {
   for (let gx = 0; gx < GRID; gx++) {
     for (let gy = 0; gy < GRID; gy++) {
@@ -824,4 +858,5 @@ export function applyEmergence(
   ruleReflection(grid, root);
   ruleMonumentAura(grid, root);
   ruleWatermill(grid, root);
+  ruleLighthouseHarbor(grid, root);
 }
