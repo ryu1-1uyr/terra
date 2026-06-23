@@ -108,6 +108,11 @@ const PRESETS: Preset[] = [
     cells: [[3,3,"statue"]],
   },
   {
+    name: "大聖堂 (塔4+)",
+    desc: "ruleCathedral",
+    cells: [[3,3,"tower"],[3,4,"tower"],[4,3,"tower"],[4,4,"tower"]],
+  },
+  {
     name: "要塞 (塔塔家家 2x2)",
     desc: "ruleFortress",
     cells: [[3,3,"tower"],[4,3,"tower"],[3,4,"house"],[4,4,"house"]],

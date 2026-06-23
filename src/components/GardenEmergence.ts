@@ -755,6 +755,55 @@ function ruleMonumentAura(grid: Grid, root: THREE.Group) {
   }
 }
 
+function ruleCathedral(grid: Grid, root: THREE.Group) {
+  const clusters = findClusters(grid, "tower");
+  for (const cluster of clusters) {
+    if (cluster.length < 4) continue;
+    let maxAdj = 0;
+    let centerGx = cluster[0][0];
+    let centerGy = cluster[0][1];
+    for (const [cx, cy] of cluster) {
+      const adjCount = neighbors(grid, cx, cy).filter(
+        (n) => n.cell.type === "tower"
+      ).length;
+      if (adjCount > maxAdj) {
+        maxAdj = adjCount;
+        centerGx = cx;
+        centerGy = cy;
+      }
+    }
+    const [px, pz] = gpos(centerGx, centerGy);
+    const spire = new THREE.Mesh(
+      new THREE.ConeGeometry(0.08, 0.6, 6),
+      new THREE.MeshStandardMaterial({
+        color: 0xccccdd,
+        emissive: 0x8888aa,
+        emissiveIntensity: 0.3,
+        metalness: 0.4,
+        roughness: 0.5,
+      })
+    );
+    spire.position.set(px, 1.6, pz);
+    root.add(spire);
+    const cross1 = new THREE.Mesh(
+      new THREE.BoxGeometry(0.2, 0.02, 0.02),
+      new THREE.MeshStandardMaterial({
+        color: 0xffd700,
+        emissive: 0xffd700,
+        emissiveIntensity: 2.0,
+      })
+    );
+    cross1.position.set(px, 1.95, pz);
+    root.add(cross1);
+    const cross2 = new THREE.Mesh(
+      new THREE.BoxGeometry(0.02, 0.15, 0.02),
+      cross1.material
+    );
+    cross2.position.set(px, 1.92, pz);
+    root.add(cross2);
+  }
+}
+
 function ruleFortress(grid: Grid, root: THREE.Group) {
   const visited = new Set<string>();
   for (let gx = 0; gx < GRID - 1; gx++) {
@@ -1456,4 +1505,5 @@ export function applyEmergence(
   ruleRuins(grid, root);
   ruleParadise(grid, root);
   ruleFortress(grid, root);
+  ruleCathedral(grid, root);
 }
