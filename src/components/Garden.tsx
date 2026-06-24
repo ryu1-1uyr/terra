@@ -53,6 +53,7 @@ interface SeasonInfo {
 export function Garden() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
+  const camStateRef = useRef<CameraState | undefined>(undefined);
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [placedObjects, setPlacedObjects] = useState<PlacedObject[]>([]);
   const [season, setSeason] = useState<SeasonInfo | null>(null);
@@ -68,6 +69,7 @@ export function Garden() {
     renderer: THREE.WebGLRenderer;
     setHoverTile: (gx: number, gz: number) => void;
     clearHoverTile: () => void;
+    getCameraState: () => CameraState;
   } | null>(null);
 
   const loadData = useCallback(async () => {
@@ -113,7 +115,7 @@ export function Garden() {
     }
 
     const objects = placedToGardenObjects(placedObjects);
-    const result = initThreeScene(canvas, objects, isDaytime);
+    const result = initThreeScene(canvas, objects, isDaytime, camStateRef.current);
     cleanupRef.current = result.cleanup;
     sceneRef.current = {
       cam: result.cam,
@@ -121,9 +123,11 @@ export function Garden() {
       renderer: result.renderer,
       setHoverTile: result.setHoverTile,
       clearHoverTile: result.clearHoverTile,
+      getCameraState: result.getCameraState,
     };
 
     return () => {
+      camStateRef.current = result.getCameraState();
       result.cleanup();
       cleanupRef.current = null;
       sceneRef.current = null;
@@ -346,7 +350,13 @@ export function Garden() {
   );
 }
 
-function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[], initialDaytime = false) {
+interface CameraState {
+  yaw: number;
+  pitch: number;
+  dist: number;
+}
+
+function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[], initialDaytime = false, camState?: CameraState) {
   let running = true;
   let animFrameId = 0;
 
@@ -657,9 +667,9 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[], init
   resize();
 
   // --- Camera orbit ---
-  let yaw = 0.72;
-  let pitch = 0.66;
-  let dist = 15;
+  let yaw = camState?.yaw ?? 0.72;
+  let pitch = camState?.pitch ?? 0.66;
+  let dist = camState?.dist ?? 15;
   let dragging = false;
   let lx = 0;
   let ly = 0;
@@ -898,5 +908,9 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[], init
     rtBrightB.dispose();
   }
 
-  return { cleanup, cam, tiles, renderer, setHoverTile, clearHoverTile };
+  function getCameraState(): CameraState {
+    return { yaw, pitch, dist };
+  }
+
+  return { cleanup, cam, tiles, renderer, setHoverTile, clearHoverTile, getCameraState };
 }
