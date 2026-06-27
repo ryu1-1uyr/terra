@@ -346,9 +346,28 @@ function ruleParadise(grid: Grid, root: THREE.Group) {
   }
 }
 
+function removeObjectAt(root: THREE.Group, px: number, pz: number) {
+  const eps = 0.01;
+  const searchTargets = root.parent
+    ? root.parent.children.filter((c): c is THREE.Group => c instanceof THREE.Group)
+    : [root];
+  for (const group of searchTargets) {
+    for (let i = group.children.length - 1; i >= 0; i--) {
+      const child = group.children[i];
+      if (child instanceof THREE.Group &&
+          Math.abs(child.position.x - px) < eps &&
+          Math.abs(child.position.z - pz) < eps) {
+        group.remove(child);
+        return;
+      }
+    }
+  }
+}
+
 function ruleRuins(grid: Grid, root: THREE.Group) {
-  for (let gx = 0; gx < GRID; gx++) {
-    for (let gy = 0; gy < GRID; gy++) {
+  const gridSize = grid.length;
+  for (let gx = 0; gx < gridSize; gx++) {
+    for (let gy = 0; gy < gridSize; gy++) {
       if (grid[gx][gy]?.type !== "tower") continue;
       const adj = neighbors(grid, gx, gy, ADJ8);
       const types = new Set(adj.map((n) => n.cell.type));
@@ -358,43 +377,150 @@ function ruleRuins(grid: Grid, root: THREE.Group) {
       const statueN = adj.find((n) => n.cell.type === "statue")!;
       const treeN = adj.find((n) => n.cell.type === "tree")!;
       const flowerN = adj.find((n) => n.cell.type === "flower")!;
-      const tiles = [
-        gpos(gx, gy),
-        gpos(statueN.gx, statueN.gy),
-        gpos(treeN.gx, treeN.gy),
-        gpos(flowerN.gx, flowerN.gy),
+      const members: [number, number][] = [
+        [gx, gy], [statueN.gx, statueN.gy],
+        [treeN.gx, treeN.gy], [flowerN.gx, flowerN.gy],
       ];
+      const tiles = members.map(([cx, cy]) => gpos(cx, cy));
       const midX = tiles.reduce((s, [x]) => s + x, 0) / 4;
       const midZ = tiles.reduce((s, [, z]) => s + z, 0) / 4;
 
+      // --- Remove original objects ---
+      for (const [px, pz] of tiles) {
+        removeObjectAt(root, px, pz);
+      }
+
+      // --- Ruin structure: stone platform ---
       const platform = new THREE.Mesh(
-        new THREE.BoxGeometry(2.2, 0.06, 2.2),
+        new THREE.BoxGeometry(2.2, 0.08, 2.2),
         new THREE.MeshStandardMaterial({
           color: 0x3a3a4a,
           roughness: 0.95,
           metalness: 0.1,
         })
       );
-      platform.position.set(midX, 0.03, midZ);
+      platform.position.set(midX, 0.04, midZ);
       platform.receiveShadow = true;
       root.add(platform);
 
-      for (let i = 0; i < tiles.length; i++) {
-        const [tx, tz] = tiles[i];
-        const h = 0.4 + (i % 3) * 0.25;
+      // --- Broken walls ---
+      const wallMat = new THREE.MeshStandardMaterial({
+        color: 0x5a5a6a,
+        roughness: 0.9,
+        flatShading: true,
+      });
+      const wallPositions = [
+        { x: midX - 0.85, z: midZ, w: 0.08, h: 0.55, d: 1.6, ry: 0 },
+        { x: midX + 0.85, z: midZ, w: 0.08, h: 0.35, d: 1.2, ry: 0 },
+        { x: midX, z: midZ - 0.85, w: 1.0, h: 0.4, d: 0.08, ry: 0 },
+      ];
+      for (const wp of wallPositions) {
+        const wall = new THREE.Mesh(
+          new THREE.BoxGeometry(wp.w, wp.h, wp.d),
+          wallMat
+        );
+        wall.position.set(wp.x, wp.h / 2 + 0.08, wp.z);
+        wall.rotation.y = wp.ry;
+        wall.castShadow = true;
+        wall.receiveShadow = true;
+        root.add(wall);
+      }
+
+      // --- Pillars (broken columns at corners) ---
+      const pillarCorners = [
+        [midX - 0.75, midZ - 0.75], [midX + 0.75, midZ - 0.75],
+        [midX - 0.75, midZ + 0.75], [midX + 0.75, midZ + 0.75],
+      ];
+      for (let i = 0; i < pillarCorners.length; i++) {
+        const [cx, cz] = pillarCorners[i];
+        const h = 0.35 + (i % 3) * 0.2;
         const pillar = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.06, 0.08, h, 6),
+          new THREE.CylinderGeometry(0.07, 0.09, h, 7),
           new THREE.MeshStandardMaterial({
             color: 0x6a6a7a,
-            roughness: 0.8,
+            roughness: 0.85,
             flatShading: true,
           })
         );
-        pillar.position.set(tx, h / 2 + 0.06, tz);
-        pillar.rotation.z = (i % 2 === 0 ? 0.1 : -0.08);
+        pillar.position.set(cx, h / 2 + 0.08, cz);
+        pillar.rotation.z = (i % 2 === 0 ? 0.08 : -0.06);
+        pillar.castShadow = true;
         root.add(pillar);
       }
 
+      // --- Archway (entrance) ---
+      const archMat = new THREE.MeshStandardMaterial({
+        color: 0x4a4a5a,
+        roughness: 0.85,
+        flatShading: true,
+      });
+      const archL = new THREE.Mesh(
+        new THREE.BoxGeometry(0.1, 0.7, 0.1), archMat
+      );
+      archL.position.set(midX - 0.2, 0.43, midZ + 0.85);
+      archL.castShadow = true;
+      root.add(archL);
+      const archR = new THREE.Mesh(
+        new THREE.BoxGeometry(0.1, 0.7, 0.1), archMat
+      );
+      archR.position.set(midX + 0.2, 0.43, midZ + 0.85);
+      archR.castShadow = true;
+      root.add(archR);
+      const archTop = new THREE.Mesh(
+        new THREE.BoxGeometry(0.5, 0.08, 0.12), archMat
+      );
+      archTop.position.set(midX, 0.82, midZ + 0.85);
+      root.add(archTop);
+
+      // --- Moss / vine patches on walls ---
+      const mossMat = new THREE.MeshStandardMaterial({
+        color: 0x3a6a3a,
+        roughness: 1,
+        transparent: true,
+        opacity: 0.7,
+      });
+      for (let i = 0; i < 6; i++) {
+        const moss = new THREE.Mesh(
+          new THREE.PlaneGeometry(0.15 + (i % 3) * 0.05, 0.1 + (i % 2) * 0.06),
+          mossMat
+        );
+        const angle = (i / 6) * Math.PI * 2;
+        const r = 0.7 + (i % 2) * 0.2;
+        moss.position.set(
+          midX + Math.cos(angle) * r,
+          0.15 + (i % 3) * 0.12,
+          midZ + Math.sin(angle) * r
+        );
+        moss.rotation.y = angle + Math.PI / 2;
+        root.add(moss);
+      }
+
+      // --- Scattered rubble ---
+      for (let i = 0; i < 8; i++) {
+        const rubble = new THREE.Mesh(
+          new THREE.BoxGeometry(
+            0.06 + (i % 3) * 0.03,
+            0.04 + (i % 2) * 0.02,
+            0.05 + (i % 3) * 0.02
+          ),
+          new THREE.MeshStandardMaterial({
+            color: 0x5a5a6a + ((i * 0x080808) % 0x202020),
+            roughness: 0.95,
+            flatShading: true,
+          })
+        );
+        const ra = (i / 8) * Math.PI * 2 + 0.3;
+        const rr = 0.3 + (i % 3) * 0.25;
+        rubble.position.set(
+          midX + Math.cos(ra) * rr,
+          0.1,
+          midZ + Math.sin(ra) * rr
+        );
+        rubble.rotation.set(i * 0.5, i * 0.7, i * 0.3);
+        root.add(rubble);
+      }
+
+      // --- Effects (crystal, runes, fragments, beam, light) ---
       const crystal = new THREE.Mesh(
         new THREE.OctahedronGeometry(0.15, 0),
         new THREE.MeshStandardMaterial({
@@ -428,14 +554,14 @@ function ruleRuins(grid: Grid, root: THREE.Group) {
         circleMat
       );
       outerRune.rotation.x = Math.PI / 2;
-      outerRune.position.set(midX, 0.07, midZ);
+      outerRune.position.set(midX, 0.09, midZ);
       root.add(outerRune);
       const innerRune = new THREE.Mesh(
         new THREE.TorusGeometry(0.5, 0.012, 4, 18),
         circleMat.clone()
       );
       innerRune.rotation.x = Math.PI / 2;
-      innerRune.position.set(midX, 0.07, midZ);
+      innerRune.position.set(midX, 0.09, midZ);
       root.add(innerRune);
       anim(outerRune, (t) => {
         outerRune.rotation.z = t * 0.2;
