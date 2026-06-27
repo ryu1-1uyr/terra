@@ -98,9 +98,10 @@ function ruleFlowerClock(grid: Grid, root: THREE.Group) {
 }
 
 function ruleSkybridges(grid: Grid, root: THREE.Group) {
+  const gridSize = grid.length;
   const visited = new Set<string>();
-  for (let x = 0; x < GRID; x++) {
-    for (let y = 0; y < GRID; y++) {
+  for (let x = 0; x < gridSize; x++) {
+    for (let y = 0; y < gridSize; y++) {
       if (grid[x][y]?.type !== "tower") continue;
       const adjTowers = neighbors(grid, x, y).filter(
         (n) => n.cell.type === "tower"
@@ -119,20 +120,97 @@ function ruleSkybridges(grid: Grid, root: THREE.Group) {
         const mz = (p1z + p2z) / 2;
         const dx = p2x - p1x;
         const dz = p2z - p1z;
-        const len = Math.sqrt(dx * dx + dz * dz);
+        const angle = Math.atan2(dz, dx);
 
+        removeObjectAt(root, p1x, p1z);
+        removeObjectAt(root, p2x, p2z);
+
+        const towerMat = new THREE.MeshStandardMaterial({
+          color: 0x6a7a8a,
+          roughness: 0.7,
+          metalness: 0.2,
+          flatShading: true,
+        });
+        for (const [tx, tz] of [[p1x, p1z], [p2x, p2z]]) {
+          const base = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.18, 0.22, 0.9, 8),
+            towerMat
+          );
+          base.position.set(tx, 0.45, tz);
+          base.castShadow = true;
+          root.add(base);
+          const top = new THREE.Mesh(
+            new THREE.ConeGeometry(0.22, 0.25, 8),
+            new THREE.MeshStandardMaterial({ color: 0x4a5a6a, flatShading: true })
+          );
+          top.position.set(tx, 1.02, tz);
+          root.add(top);
+          for (let wi = 0; wi < 3; wi++) {
+            const wa = (wi / 3) * Math.PI * 2;
+            const win = new THREE.Mesh(
+              new THREE.PlaneGeometry(0.06, 0.08),
+              new THREE.MeshStandardMaterial({
+                color: 0xffeeaa,
+                emissive: 0xffeeaa,
+                emissiveIntensity: 1.5,
+                side: THREE.DoubleSide,
+              })
+            );
+            win.position.set(
+              tx + Math.cos(wa) * 0.19,
+              0.55 + wi * 0.12,
+              tz + Math.sin(wa) * 0.19
+            );
+            win.rotation.y = wa;
+            root.add(win);
+          }
+        }
+
+        const bridgeMat = new THREE.MeshStandardMaterial({
+          color: 0x8a9bb8,
+          roughness: 0.4,
+          metalness: 0.3,
+        });
         const bridge = new THREE.Mesh(
-          new THREE.BoxGeometry(len * 0.85, 0.04, 0.12),
-          new THREE.MeshStandardMaterial({
-            color: 0x8a9bb8,
-            roughness: 0.4,
-            metalness: 0.3,
-          })
+          new THREE.BoxGeometry(0.85, 0.05, 0.2),
+          bridgeMat
         );
-        bridge.position.set(mx, 1.1, mz);
-        bridge.rotation.y = Math.atan2(dz, dx);
+        bridge.position.set(mx, 0.75, mz);
+        bridge.rotation.y = angle;
         bridge.castShadow = true;
         root.add(bridge);
+        for (const side of [-1, 1]) {
+          const rail = new THREE.Mesh(
+            new THREE.BoxGeometry(0.85, 0.08, 0.02),
+            towerMat
+          );
+          rail.position.set(
+            mx + Math.cos(angle + Math.PI / 2) * side * 0.09,
+            0.82,
+            mz + Math.sin(angle + Math.PI / 2) * side * 0.09
+          );
+          rail.rotation.y = angle;
+          root.add(rail);
+        }
+
+        const lanternMat = new THREE.MeshStandardMaterial({
+          color: 0x000000,
+          emissive: 0xffa500,
+          emissiveIntensity: 2.5,
+        });
+        const lantern = new THREE.Mesh(
+          new THREE.SphereGeometry(0.04, 6, 6),
+          lanternMat
+        );
+        lantern.position.set(mx, 0.88, mz);
+        root.add(lantern);
+        const lanternLight = new THREE.PointLight(0xffa500, 0.4, 2.0, 2.0);
+        lanternLight.position.set(mx, 0.88, mz);
+        root.add(lanternLight);
+        anim(lantern, (t) => {
+          lanternMat.emissiveIntensity = 2.0 + Math.sin(t * 3.0) * 1.0;
+          lanternLight.intensity = 0.3 + Math.sin(t * 3.0) * 0.2;
+        });
       }
     }
   }
@@ -210,9 +288,10 @@ function ruleCathedral(grid: Grid, root: THREE.Group) {
 }
 
 function ruleFortress(grid: Grid, root: THREE.Group) {
+  const gridSize = grid.length;
   const visited = new Set<string>();
-  for (let gx = 0; gx < GRID - 1; gx++) {
-    for (let gy = 0; gy < GRID - 1; gy++) {
+  for (let gx = 0; gx < gridSize - 1; gx++) {
+    for (let gy = 0; gy < gridSize - 1; gy++) {
       const block = [
         grid[gx][gy]?.type,
         grid[gx + 1][gy]?.type,
@@ -225,30 +304,91 @@ function ruleFortress(grid: Grid, root: THREE.Group) {
       const key = `${gx},${gy}`;
       if (visited.has(key)) continue;
       visited.add(key);
-      const H = (GRID - 1) / 2;
+
+      const members: [number, number][] = [
+        [gx, gy], [gx + 1, gy], [gx, gy + 1], [gx + 1, gy + 1],
+      ];
+      for (const [mx, my] of members) {
+        const [px, pz] = gpos(mx, my);
+        removeObjectAt(root, px, pz);
+      }
+
+      const H = (gridSize - 1) / 2;
       const cx = gx + 0.5 - H;
       const cz = gy + 0.5 - H;
+
+      const stoneMat = new THREE.MeshStandardMaterial({
+        color: 0x5a5a6a,
+        roughness: 0.85,
+        metalness: 0.1,
+        flatShading: true,
+      });
+
       const cobble = new THREE.Mesh(
-        new THREE.BoxGeometry(1.96, 0.02, 1.96),
+        new THREE.BoxGeometry(2.0, 0.06, 2.0),
         new THREE.MeshStandardMaterial({ color: 0x4a4a5a, roughness: 0.95 })
       );
-      cobble.position.set(cx, 0.01, cz);
+      cobble.position.set(cx, 0.03, cz);
       cobble.receiveShadow = true;
       root.add(cobble);
-      const torchPositions = [
-        [cx - 0.85, cz - 0.85],
-        [cx + 0.85, cz - 0.85],
-        [cx - 0.85, cz + 0.85],
-        [cx + 0.85, cz + 0.85],
+
+      const wallSegments = [
+        { x: cx, z: cz - 0.95, w: 2.0, d: 0.1 },
+        { x: cx, z: cz + 0.95, w: 2.0, d: 0.1 },
+        { x: cx - 0.95, z: cz, w: 0.1, d: 2.0 },
+        { x: cx + 0.95, z: cz, w: 0.1, d: 2.0 },
       ];
-      for (let ti = 0; ti < torchPositions.length; ti++) {
-        const [tx, tz] = torchPositions[ti];
-        const pole = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.015, 0.015, 0.3),
-          new THREE.MeshStandardMaterial({ color: 0x553322 })
+      for (const ws of wallSegments) {
+        const wall = new THREE.Mesh(
+          new THREE.BoxGeometry(ws.w, 0.45, ws.d),
+          stoneMat
         );
-        pole.position.set(tx, 0.15, tz);
-        root.add(pole);
+        wall.position.set(ws.x, 0.285, ws.z);
+        wall.castShadow = true;
+        wall.receiveShadow = true;
+        root.add(wall);
+      }
+      for (let side = 0; side < 4; side++) {
+        const merlonCount = 5;
+        for (let mi = 0; mi < merlonCount; mi++) {
+          const frac = (mi / (merlonCount - 1)) * 2 - 1;
+          const mx2 = side < 2
+            ? cx + frac * 0.9
+            : cx + (side === 2 ? -0.95 : 0.95);
+          const mz2 = side < 2
+            ? cz + (side === 0 ? -0.95 : 0.95)
+            : cz + frac * 0.9;
+          if (mi % 2 === 0) {
+            const merlon = new THREE.Mesh(
+              new THREE.BoxGeometry(0.1, 0.12, 0.1),
+              stoneMat
+            );
+            merlon.position.set(mx2, 0.57, mz2);
+            root.add(merlon);
+          }
+        }
+      }
+
+      const corners = [
+        [cx - 0.85, cz - 0.85], [cx + 0.85, cz - 0.85],
+        [cx - 0.85, cz + 0.85], [cx + 0.85, cz + 0.85],
+      ];
+      for (let ti = 0; ti < corners.length; ti++) {
+        const [tx, tz] = corners[ti];
+        const turret = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.13, 0.15, 0.7, 8),
+          stoneMat
+        );
+        turret.position.set(tx, 0.41, tz);
+        turret.castShadow = true;
+        root.add(turret);
+        const turretTop = new THREE.Mesh(
+          new THREE.ConeGeometry(0.16, 0.18, 8),
+          new THREE.MeshStandardMaterial({ color: 0x8b4513, flatShading: true })
+        );
+        turretTop.position.set(tx, 0.85, tz);
+        root.add(turretTop);
+
         const flameMat = new THREE.MeshStandardMaterial({
           color: 0x000000,
           emissive: 0xff6622,
@@ -258,65 +398,167 @@ function ruleFortress(grid: Grid, root: THREE.Group) {
           new THREE.SphereGeometry(0.035, 6, 6),
           flameMat
         );
-        flame.position.set(tx, 0.33, tz);
+        flame.position.set(tx, 0.98, tz);
         root.add(flame);
-        const torchLight = new THREE.PointLight(0xff6622, 0.3, 1.0, 2.0);
-        torchLight.position.set(tx, 0.35, tz);
+        const torchLight = new THREE.PointLight(0xff6622, 0.3, 1.5, 2.0);
+        torchLight.position.set(tx, 1.0, tz);
         root.add(torchLight);
         const phase = ti * 1.5 + gx;
         anim(flame, (t) => {
           flameMat.emissiveIntensity = 2.5 + Math.sin(t * 6.0 + phase) * 1.5;
           flame.scale.y = 1.0 + Math.sin(t * 8.0 + phase) * 0.3;
-          flame.position.y = 0.33 + Math.sin(t * 5.0 + phase) * 0.015;
           torchLight.intensity = 0.25 + Math.sin(t * 6.0 + phase) * 0.15;
         });
       }
+
+      const gate = new THREE.Mesh(
+        new THREE.BoxGeometry(0.3, 0.3, 0.12),
+        new THREE.MeshStandardMaterial({ color: 0x3a2a1a, roughness: 0.9 })
+      );
+      gate.position.set(cx, 0.21, cz + 0.95);
+      root.add(gate);
     }
   }
 }
 
 function ruleParadise(grid: Grid, root: THREE.Group) {
-  for (let gx = 0; gx < GRID; gx++) {
-    for (let gy = 0; gy < GRID; gy++) {
+  const gridSize = grid.length;
+  for (let gx = 0; gx < gridSize; gx++) {
+    for (let gy = 0; gy < gridSize; gy++) {
       const cell = grid[gx][gy];
-      if (!cell) continue;
+      if (!cell || cell.type !== "pond") continue;
       const adj = neighbors(grid, gx, gy, ADJ8);
       const allTypes = new Set([cell.type, ...adj.map((n) => n.cell.type)]);
-      if (
-        !allTypes.has("flower") ||
-        !allTypes.has("tree") ||
-        !allTypes.has("pond") ||
-        !allTypes.has("house")
-      )
+      if (!allTypes.has("flower") || !allTypes.has("tree") || !allTypes.has("house"))
         continue;
-      if (cell.type !== "pond") continue;
-      const [px, pz] = gpos(gx, gy);
+
+      const flowerN = adj.find((n) => n.cell.type === "flower")!;
+      const treeN = adj.find((n) => n.cell.type === "tree")!;
+      const houseN = adj.find((n) => n.cell.type === "house")!;
+      const members: [number, number][] = [
+        [gx, gy], [flowerN.gx, flowerN.gy],
+        [treeN.gx, treeN.gy], [houseN.gx, houseN.gy],
+      ];
+      const tiles = members.map(([cx, cy]) => gpos(cx, cy));
+      const midX = tiles.reduce((s, [x]) => s + x, 0) / 4;
+      const midZ = tiles.reduce((s, [, z]) => s + z, 0) / 4;
+
+      for (const [px, pz] of tiles) {
+        removeObjectAt(root, px, pz);
+      }
+
+      // --- Garden platform ---
+      const grassMat = new THREE.MeshStandardMaterial({
+        color: 0x3a7a3a,
+        roughness: 0.95,
+      });
+      const platform = new THREE.Mesh(
+        new THREE.CylinderGeometry(1.1, 1.15, 0.08, 16),
+        grassMat
+      );
+      platform.position.set(midX, 0.04, midZ);
+      platform.receiveShadow = true;
+      root.add(platform);
+
+      // --- Pond (center) ---
+      const pondMat = new THREE.MeshStandardMaterial({
+        color: 0x3388cc,
+        emissive: 0x2266aa,
+        emissiveIntensity: 0.5,
+        transparent: true,
+        opacity: 0.8,
+        metalness: 0.3,
+      });
+      const pond = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.35, 0.35, 0.02, 12),
+        pondMat
+      );
+      pond.position.set(midX, 0.09, midZ);
+      root.add(pond);
+      anim(pond, (t) => {
+        pondMat.emissiveIntensity = 0.4 + Math.sin(t * 1.5) * 0.2;
+      });
+
+      // --- Gazebo pillars ---
+      const pillarMat = new THREE.MeshStandardMaterial({
+        color: 0xeeeeee,
+        roughness: 0.5,
+      });
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        const pr = 0.7;
+        const pillar = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.03, 0.03, 0.6, 6),
+          pillarMat
+        );
+        pillar.position.set(
+          midX + Math.cos(a) * pr,
+          0.38,
+          midZ + Math.sin(a) * pr
+        );
+        pillar.castShadow = true;
+        root.add(pillar);
+      }
+      const roof = new THREE.Mesh(
+        new THREE.ConeGeometry(0.8, 0.25, 6),
+        new THREE.MeshStandardMaterial({
+          color: 0xcc8844,
+          flatShading: true,
+        })
+      );
+      roof.position.set(midX, 0.78, midZ);
+      root.add(roof);
+
+      // --- Flower beds ---
+      const flowerColors = [0xff6699, 0xff99cc, 0xffcc66, 0xcc66ff];
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2;
+        const r = 0.85 + (i % 3) * 0.08;
+        const fl = new THREE.Mesh(
+          new THREE.SphereGeometry(0.04, 4, 4),
+          new THREE.MeshStandardMaterial({
+            color: flowerColors[i % flowerColors.length],
+            emissive: flowerColors[i % flowerColors.length],
+            emissiveIntensity: 0.3,
+          })
+        );
+        fl.position.set(
+          midX + Math.cos(a) * r,
+          0.12,
+          midZ + Math.sin(a) * r
+        );
+        root.add(fl);
+      }
+
+      // --- Rainbow arch ---
       const rainbowColors = [
         0xff0000, 0xff7700, 0xffff00, 0x00ff00, 0x0077ff, 0x0000ff, 0x8b00ff,
       ];
       for (let i = 0; i < rainbowColors.length; i++) {
-        const r = 0.55 + i * 0.04;
+        const r = 0.7 + i * 0.04;
         const arc = new THREE.Mesh(
-          new THREE.TorusGeometry(r, 0.018, 6, 24, Math.PI),
+          new THREE.TorusGeometry(r, 0.015, 6, 24, Math.PI),
           new THREE.MeshStandardMaterial({
             color: rainbowColors[i],
             emissive: rainbowColors[i],
             emissiveIntensity: 0.8,
             transparent: true,
-            opacity: 0.6,
+            opacity: 0.5,
           })
         );
-        arc.position.set(px, 0.05, pz);
+        arc.position.set(midX, 0.08, midZ);
         root.add(arc);
         const phase = i * 0.3;
         anim(arc, (t) => {
           (arc.material as THREE.MeshStandardMaterial).emissiveIntensity =
             0.6 + Math.sin(t * 1.5 + phase) * 0.4;
           (arc.material as THREE.MeshStandardMaterial).opacity =
-            0.5 + Math.sin(t * 1.0 + phase) * 0.15;
+            0.4 + Math.sin(t * 1.0 + phase) * 0.15;
         });
       }
-      for (let i = 0; i < 6; i++) {
+
+      // --- Sparkles ---
+      for (let i = 0; i < 8; i++) {
         const sparkle = new THREE.Mesh(
           new THREE.SphereGeometry(0.02, 4, 4),
           new THREE.MeshStandardMaterial({
@@ -328,19 +570,23 @@ function ruleParadise(grid: Grid, root: THREE.Group) {
           })
         );
         root.add(sparkle);
-        const sp = i * 1.05;
+        const sp = i * 0.8;
         anim(sparkle, (t) => {
-          const a = t * 0.8 + sp;
-          const r2 = 0.6 + i * 0.04;
+          const a = t * 0.6 + sp;
+          const r2 = 0.5 + (i % 3) * 0.15;
           sparkle.position.set(
-            px + Math.cos(a) * r2,
-            0.2 + Math.sin(a) * 0.4,
-            pz + Math.sin(t * 0.3 + sp) * 0.15
+            midX + Math.cos(a) * r2,
+            0.3 + Math.sin(a * 1.5 + sp) * 0.35,
+            midZ + Math.sin(a) * r2
           );
           (sparkle.material as THREE.MeshStandardMaterial).opacity =
             0.3 + Math.sin(t * 3.0 + sp) * 0.3;
         });
       }
+
+      const paradiseLight = new THREE.PointLight(0xffeedd, 0.6, 3.0, 2.0);
+      paradiseLight.position.set(midX, 0.7, midZ);
+      root.add(paradiseLight);
       break;
     }
   }
@@ -627,45 +873,145 @@ function ruleRuins(grid: Grid, root: THREE.Group) {
 }
 
 function ruleCastleBanner(grid: Grid, root: THREE.Group) {
+  const gridSize = grid.length;
   const visited = new Set<string>();
-  for (let gx = 0; gx < GRID; gx++) {
-    for (let gy = 0; gy < GRID; gy++) {
+  for (let gx = 0; gx < gridSize; gx++) {
+    for (let gy = 0; gy < gridSize; gy++) {
       if (grid[gx][gy]?.type !== "tower") continue;
       const adj = neighbors(grid, gx, gy);
       const adjTowers = adj.filter((n) => n.cell.type === "tower");
       const adjHouses = adj.filter((n) => n.cell.type === "house");
       if (adjTowers.length === 0 || adjHouses.length === 0) continue;
+
       for (const t2 of adjTowers) {
+        const houseN = adjHouses[0];
         const key = [
           `${Math.min(gx, t2.gx)},${Math.min(gy, t2.gy)}`,
           `${Math.max(gx, t2.gx)},${Math.max(gy, t2.gy)}`,
+          `${houseN.gx},${houseN.gy}`,
         ].join("-");
         if (visited.has(key)) continue;
         visited.add(key);
-        const [p1x, p1z] = gpos(gx, gy);
-        const [p2x, p2z] = gpos(t2.gx, t2.gy);
-        const mx = (p1x + p2x) / 2;
-        const mz = (p1z + p2z) / 2;
+
+        const members: [number, number][] = [
+          [gx, gy], [t2.gx, t2.gy], [houseN.gx, houseN.gy],
+        ];
+        const tiles = members.map(([cx, cy]) => gpos(cx, cy));
+        const midX = tiles.reduce((s, [x]) => s + x, 0) / 3;
+        const midZ = tiles.reduce((s, [, z]) => s + z, 0) / 3;
+
+        for (const [px, pz] of tiles) {
+          removeObjectAt(root, px, pz);
+        }
+
+        const stoneMat = new THREE.MeshStandardMaterial({
+          color: 0x6a6a7a,
+          roughness: 0.8,
+          metalness: 0.1,
+          flatShading: true,
+        });
+
+        // --- Main keep ---
+        const keep = new THREE.Mesh(
+          new THREE.BoxGeometry(0.6, 0.7, 0.6),
+          stoneMat
+        );
+        keep.position.set(midX, 0.41, midZ);
+        keep.castShadow = true;
+        root.add(keep);
+
+        // --- Tower pair ---
+        const [p1x, p1z] = tiles[0];
+        const [p2x, p2z] = tiles[1];
+        for (const [tx, tz] of [[p1x, p1z], [p2x, p2z]]) {
+          const tower = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.14, 0.16, 0.9, 8),
+            stoneMat
+          );
+          tower.position.set(tx, 0.51, tz);
+          tower.castShadow = true;
+          root.add(tower);
+          const coneTop = new THREE.Mesh(
+            new THREE.ConeGeometry(0.17, 0.2, 8),
+            new THREE.MeshStandardMaterial({ color: 0x8b4513, flatShading: true })
+          );
+          coneTop.position.set(tx, 1.06, tz);
+          root.add(coneTop);
+        }
+
+        // --- Connecting wall ---
+        const dx = p2x - p1x;
+        const dz = p2z - p1z;
+        const len = Math.sqrt(dx * dx + dz * dz);
+        const wallAngle = Math.atan2(dz, dx);
+        const wallMx = (p1x + p2x) / 2;
+        const wallMz = (p1z + p2z) / 2;
+        const wall = new THREE.Mesh(
+          new THREE.BoxGeometry(len * 0.6, 0.45, 0.08),
+          stoneMat
+        );
+        wall.position.set(wallMx, 0.29, wallMz);
+        wall.rotation.y = wallAngle;
+        wall.castShadow = true;
+        root.add(wall);
+
+        // --- Gate (house side) ---
+        const [hx, hz] = tiles[2];
+        const gateDx = hx - midX;
+        const gateDz = hz - midZ;
+        const gateAngle = Math.atan2(gateDz, gateDx);
+        const gateX = midX + Math.cos(gateAngle) * 0.3;
+        const gateZ = midZ + Math.sin(gateAngle) * 0.3;
+        const gateL = new THREE.Mesh(
+          new THREE.BoxGeometry(0.08, 0.5, 0.08),
+          stoneMat
+        );
+        gateL.position.set(
+          gateX + Math.cos(gateAngle + Math.PI / 2) * 0.12,
+          0.31,
+          gateZ + Math.sin(gateAngle + Math.PI / 2) * 0.12
+        );
+        root.add(gateL);
+        const gateR = gateL.clone();
+        gateR.position.set(
+          gateX + Math.cos(gateAngle - Math.PI / 2) * 0.12,
+          0.31,
+          gateZ + Math.sin(gateAngle - Math.PI / 2) * 0.12
+        );
+        root.add(gateR);
+        const gateTop = new THREE.Mesh(
+          new THREE.BoxGeometry(0.32, 0.06, 0.08),
+          stoneMat
+        );
+        gateTop.position.set(gateX, 0.59, gateZ);
+        gateTop.rotation.y = gateAngle;
+        root.add(gateTop);
+
+        // --- Banner ---
         const bannerColors = [0xff3333, 0x3333ff, 0xffcc00];
         const col = bannerColors[(gx + gy) % bannerColors.length];
         const flag = new THREE.Mesh(
-          new THREE.PlaneGeometry(0.18, 0.25),
+          new THREE.PlaneGeometry(0.15, 0.2),
           new THREE.MeshStandardMaterial({
             color: col,
             emissive: col,
-            emissiveIntensity: 0.3,
+            emissiveIntensity: 0.4,
             side: THREE.DoubleSide,
           })
         );
-        flag.position.set(mx, 1.0, mz);
-        const dx = p2x - p1x;
-        const dz = p2z - p1z;
-        flag.rotation.y = Math.atan2(dz, dx);
+        flag.position.set(midX, 0.95, midZ);
         root.add(flag);
+        const poleMat = new THREE.MeshStandardMaterial({ color: 0x444444 });
+        const pole = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.01, 0.01, 0.3),
+          poleMat
+        );
+        pole.position.set(midX, 0.88, midZ);
+        root.add(pole);
         const phase = gx * 2.1 + gy * 3.3;
         anim(flag, (t) => {
-          flag.rotation.z = Math.sin(t * 3.0 + phase) * 0.2;
-          flag.scale.x = 1.0 + Math.sin(t * 4.0 + phase) * 0.08;
+          flag.rotation.z = Math.sin(t * 3.0 + phase) * 0.15;
+          flag.scale.x = 1.0 + Math.sin(t * 4.0 + phase) * 0.06;
         });
       }
     }
