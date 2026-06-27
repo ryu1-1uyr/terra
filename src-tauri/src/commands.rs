@@ -513,6 +513,7 @@ pub struct FrozenGarden {
     pub season_number: i64,
     pub frozen_at: String,
     pub snapshot_json: String,
+    pub grid_size: i64,
 }
 
 #[tauri::command]
@@ -522,11 +523,11 @@ pub fn freeze_and_wipe(db: State<'_, Arc<AppDb>>) -> Result<i64, String> {
         .format("%Y-%m-%dT%H:%M:%S")
         .to_string();
 
-    let season_number: i64 = conn
+    let (season_number, grid_size): (i64, i64) = conn
         .query_row(
-            "SELECT season_number FROM garden_state WHERE id = 1",
+            "SELECT season_number, grid_size FROM garden_state WHERE id = 1",
             [],
-            |r| r.get(0),
+            |r| Ok((r.get(0)?, r.get(1)?)),
         )
         .map_err(|e| e.to_string())?;
 
@@ -558,8 +559,8 @@ pub fn freeze_and_wipe(db: State<'_, Arc<AppDb>>) -> Result<i64, String> {
     let snapshot = serde_json::to_string(&objects).map_err(|e| e.to_string())?;
 
     conn.execute(
-        "INSERT INTO frozen_gardens (season_number, frozen_at, snapshot_json) VALUES (?1, ?2, ?3)",
-        rusqlite::params![season_number, &now, &snapshot],
+        "INSERT INTO frozen_gardens (season_number, frozen_at, snapshot_json, grid_size) VALUES (?1, ?2, ?3, ?4)",
+        rusqlite::params![season_number, &now, &snapshot, grid_size],
     )
     .map_err(|e| e.to_string())?;
 
@@ -585,7 +586,7 @@ pub fn freeze_and_wipe(db: State<'_, Arc<AppDb>>) -> Result<i64, String> {
 pub fn list_frozen_gardens(db: State<'_, Arc<AppDb>>) -> Result<Vec<FrozenGarden>, String> {
     let conn = db.conn.lock().unwrap();
     let mut stmt = conn
-        .prepare("SELECT id, season_number, frozen_at, snapshot_json FROM frozen_gardens ORDER BY frozen_at DESC")
+        .prepare("SELECT id, season_number, frozen_at, snapshot_json, grid_size FROM frozen_gardens ORDER BY frozen_at DESC")
         .map_err(|e| e.to_string())?;
 
     let gardens = stmt
@@ -595,6 +596,7 @@ pub fn list_frozen_gardens(db: State<'_, Arc<AppDb>>) -> Result<Vec<FrozenGarden
                 season_number: row.get(1)?,
                 frozen_at: row.get(2)?,
                 snapshot_json: row.get(3)?,
+                grid_size: row.get(4)?,
             })
         })
         .map_err(|e| e.to_string())?

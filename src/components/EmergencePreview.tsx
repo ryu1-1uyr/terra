@@ -332,7 +332,7 @@ export function EmergencePreview() {
         const { group, animator } = buildGrownObject({
           type: cell, gx, gy, growth: gr,
         });
-        const [px, pz] = gpos(gx, gy);
+        const [px, pz] = gpos(gx, gy, GRID);
         group.position.set(px, 0, pz);
         s.objGroup.add(group);
         if (animator) s.animators.push(animator);

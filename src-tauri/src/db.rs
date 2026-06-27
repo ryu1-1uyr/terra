@@ -109,6 +109,16 @@ impl AppDb {
                 .map_err(|e| e.to_string())?;
         }
 
+        let has_frozen_grid_size: bool = conn
+            .prepare("SELECT COUNT(*) FROM pragma_table_info('frozen_gardens') WHERE name='grid_size'")
+            .and_then(|mut s| s.query_row([], |r| r.get::<_, i64>(0)))
+            .unwrap_or(0)
+            > 0;
+        if !has_frozen_grid_size {
+            conn.execute_batch("ALTER TABLE frozen_gardens ADD COLUMN grid_size INTEGER NOT NULL DEFAULT 8;")
+                .map_err(|e| e.to_string())?;
+        }
+
         let has_grid_size: bool = conn
             .prepare("SELECT COUNT(*) FROM pragma_table_info('garden_state') WHERE name='grid_size'")
             .and_then(|mut s| s.query_row([], |r| r.get::<_, i64>(0)))

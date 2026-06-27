@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { invoke } from "../mock-invoke";
 import * as THREE from "three";
 import { applyEmergence } from "./garden/emergence";
+import { gpos } from "./garden/grid";
+import { buildGridTiles } from "./garden/scene";
 import { createObjectMesh, type ObjectType } from "./GardenObjects";
 import "./Gallery.css";
 
@@ -10,6 +12,7 @@ interface FrozenGarden {
   season_number: number;
   frozen_at: string;
   snapshot_json: string;
+  grid_size: number;
 }
 
 interface PlacedObject {
@@ -99,7 +102,7 @@ function FrozenViewer({
       growth: p.growth_stage,
     }));
 
-    const { cleanup } = initFrozenScene(canvas, gardenObjects);
+    const { cleanup } = initFrozenScene(canvas, gardenObjects, garden.grid_size);
     return cleanup;
   }, [garden]);
 
@@ -118,12 +121,6 @@ function FrozenViewer({
   );
 }
 
-const GRID = 8;
-const HALF = (GRID - 1) / 2;
-function gpos(gx: number, gy: number): [number, number] {
-  return [gx - HALF, gy - HALF];
-}
-
 interface FrozenObj {
   type: ObjectType;
   gx: number;
@@ -131,7 +128,7 @@ interface FrozenObj {
   growth: number;
 }
 
-function initFrozenScene(canvas: HTMLCanvasElement, objects: FrozenObj[]) {
+function initFrozenScene(canvas: HTMLCanvasElement, objects: FrozenObj[], gridSize: number) {
   let running = true;
   let animFrameId = 0;
 
@@ -178,33 +175,17 @@ function initFrozenScene(canvas: HTMLCanvasElement, objects: FrozenObj[]) {
   scene.add(root);
 
   const baseMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(GRID + 0.6, 0.6, GRID + 0.6),
+    new THREE.BoxGeometry(gridSize + 0.6, 0.6, gridSize + 0.6),
     new THREE.MeshStandardMaterial({ color: 0x121a26, roughness: 1 })
   );
   baseMesh.position.set(0, -0.5, 0);
   baseMesh.receiveShadow = true;
   root.add(baseMesh);
 
-  const tileGeo = new THREE.BoxGeometry(0.96, 0.18, 0.96);
-  for (let gx = 0; gx < GRID; gx++) {
-    for (let gy = 0; gy < GRID; gy++) {
-      const even = (gx + gy) % 2 === 0;
-      const t = new THREE.Mesh(
-        tileGeo,
-        new THREE.MeshStandardMaterial({
-          color: even ? 0x273349 : 0x1c2638,
-          roughness: 0.92,
-        })
-      );
-      const [x, z] = gpos(gx, gy);
-      t.position.set(x, -0.09, z);
-      t.receiveShadow = true;
-      root.add(t);
-    }
-  }
+  buildGridTiles(root, gridSize);
 
   for (const o of objects) {
-    const [px, pz] = gpos(o.gx, o.gy);
+    const [px, pz] = gpos(o.gx, o.gy, gridSize);
     const s = 1 + (o.growth ?? 0);
     const g = new THREE.Group();
     g.position.set(px, 0, pz);
@@ -217,7 +198,7 @@ function initFrozenScene(canvas: HTMLCanvasElement, objects: FrozenObj[]) {
     root.add(g);
   }
 
-  applyEmergence(objects, root);
+  applyEmergence(objects, root, gridSize);
 
   let yaw = 0.72;
   let pitch = 0.66;
