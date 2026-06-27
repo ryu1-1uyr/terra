@@ -17,7 +17,7 @@ pub struct AchievementEvent {
     pub task_id: String,
     pub task_title: String,
     pub achieved_date: String,
-    pub reward_type: String,
+    pub reward_types: Vec<String>,
 }
 
 struct TrackedTask {
@@ -51,11 +51,24 @@ fn random_reward_type() -> String {
         .unwrap()
         .subsec_nanos();
     let types = [
-        "house", "tree", "flower", "flower", "tree",
-        "windmill", "shrine", "lamp", "pond", "statue",
-        "tree", "flower", "house",
+        "house", "tree", "flower", "tower", "windmill",
+        "shrine", "lamp", "pond", "statue",
     ];
     types[(nanos as usize) % types.len()].to_string()
+}
+
+fn random_reward_count() -> usize {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .subsec_nanos() as usize;
+    // 1: 50%, 2: 35%, 3: 15%
+    match nanos % 20 {
+        0..=9 => 1,
+        10..=16 => 2,
+        _ => 3,
+    }
 }
 
 pub fn list_running_processes() -> Vec<RunningProcess> {
@@ -107,11 +120,17 @@ fn record_achievement(
         rusqlite::params![task_id, achieved_date, &now, duration_secs],
     );
 
-    let item_type = random_reward_type();
-    let _ = conn.execute(
-        "INSERT INTO inventory (item_type, item_variant, obtained_at) VALUES (?1, ?2, ?3)",
-        rusqlite::params![&item_type, Option::<String>::None, &now],
-    );
+    let count = random_reward_count();
+    let mut reward_types = Vec::new();
+    for _ in 0..count {
+        let item_type = random_reward_type();
+        let _ = conn.execute(
+            "INSERT INTO inventory (item_type, item_variant, obtained_at) VALUES (?1, ?2, ?3)",
+            rusqlite::params![&item_type, Option::<String>::None, &now],
+        );
+        reward_types.push(item_type);
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
 
     if !is_daily {
         let _ = conn.execute(
@@ -120,7 +139,6 @@ fn record_achievement(
         );
     }
 
-    // Read back task_title for the event
     let task_title: String = conn
         .query_row(
             "SELECT title FROM tasks WHERE id = ?1",
@@ -133,7 +151,7 @@ fn record_achievement(
         task_id: task_id.to_string(),
         task_title,
         achieved_date: achieved_date.to_string(),
-        reward_type: item_type,
+        reward_types,
     })
 }
 
