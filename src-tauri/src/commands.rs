@@ -398,12 +398,11 @@ pub fn tick_growth(db: State<'_, Arc<AppDb>>) -> Result<f64, String> {
     let elapsed_hours = (now_dt - last_dt).num_seconds() as f64 / 3600.0;
 
     if elapsed_hours > 0.001 {
-        let base_rate = 0.04;
-        // Per-object growth with variance based on random_seed (±40%)
-        // Biased slightly high so average is ~1.08x base ("上振れ")
+        let base_rate = 0.00167;
+        let max_growth = 3.0;
         conn.execute(
-            "UPDATE garden_objects SET growth_stage = growth_stage + ?1 * (0.88 + random_seed * 0.4)",
-            rusqlite::params![elapsed_hours * base_rate],
+            "UPDATE garden_objects SET growth_stage = MIN(?2, growth_stage + ?1 * (0.88 + random_seed * 0.4))",
+            rusqlite::params![elapsed_hours * base_rate, max_growth],
         )
         .map_err(|e| e.to_string())?;
     }

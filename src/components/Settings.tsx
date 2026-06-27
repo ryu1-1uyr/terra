@@ -226,7 +226,7 @@ export function Settings() {
           </div>
           <div className="info-row">
             <span className="info-label">成長レート</span>
-            <span className="info-value">0.04/h（±40%個体差）</span>
+            <span className="info-value">0.00167/h（±40%個体差, 上限3.0）</span>
           </div>
           <div className="info-row">
             <span className="info-label">シーズン周期</span>
