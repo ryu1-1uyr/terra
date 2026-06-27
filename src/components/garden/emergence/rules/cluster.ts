@@ -132,31 +132,96 @@ function ruleFlowerField(grid: Grid, root: THREE.Group) {
   const clusters = findClusters(grid, "flower");
   for (const cluster of clusters) {
     if (cluster.length < 3) continue;
+
     for (const [gx, gy] of cluster) {
       const [px, pz] = gpos(gx, gy);
-      const colors = [0xff7ad1, 0xffd24a, 0x7ad1ff, 0xb6ff3f];
-      for (let i = 0; i < 6; i++) {
-        const dot = new THREE.Mesh(
-          new THREE.SphereGeometry(0.03, 4, 4),
+      const carpet = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.98, 0.98),
+        new THREE.MeshStandardMaterial({
+          color: 0x3a6b2a,
+          emissive: 0x2a4a1a,
+          emissiveIntensity: 0.1,
+          roughness: 1,
+        })
+      );
+      carpet.rotation.x = -Math.PI / 2;
+      carpet.position.set(px, 0.006, pz);
+      carpet.receiveShadow = true;
+      root.add(carpet);
+
+      const colors = [0xff7ad1, 0xffd24a, 0x7ad1ff, 0xffaacc, 0xb6ff3f];
+      for (let i = 0; i < 10; i++) {
+        const col = colors[(gx * 3 + gy + i) % colors.length];
+        const angle = (i / 10) * Math.PI * 2 + gx * 1.7 + gy * 0.3;
+        const r = 0.1 + ((i * 7 + gx) % 5) * 0.06;
+        const bx = px + Math.cos(angle) * r;
+        const bz = pz + Math.sin(angle) * r;
+        const stem = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.006, 0.006, 0.06 + (i % 3) * 0.02),
+          new THREE.MeshStandardMaterial({ color: 0x44884a })
+        );
+        const sh = 0.03 + (i % 3) * 0.01;
+        stem.position.set(bx, sh, bz);
+        root.add(stem);
+        const petal = new THREE.Mesh(
+          new THREE.SphereGeometry(0.025 + (i % 2) * 0.01, 5, 4),
           new THREE.MeshStandardMaterial({
-            color: colors[(gx * 3 + gy + i) % colors.length],
-            emissive: colors[(gx * 3 + gy + i) % colors.length],
+            color: col,
+            emissive: col,
             emissiveIntensity: 0.4,
           })
         );
-        const angle = (i / 6) * Math.PI * 2 + gx;
-        const r = 0.2 + ((i * 7 + gx) % 3) * 0.1;
-        const bx = px + Math.cos(angle) * r;
-        const bz = pz + Math.sin(angle) * r;
-        dot.position.set(bx, 0.04, bz);
-        root.add(dot);
+        petal.position.set(bx, sh * 2 + 0.01, bz);
+        root.add(petal);
         const phase = gx * 1.3 + gy * 2.1 + i * 0.7;
-        anim(dot, (t) => {
-          dot.position.x = bx + Math.sin(t * 1.5 + phase) * 0.02;
-          dot.position.y = 0.04 + Math.sin(t * 2.0 + phase) * 0.015;
-          dot.position.z = bz + Math.cos(t * 1.3 + phase) * 0.02;
+        anim(stem, (t) => {
+          stem.rotation.z = Math.sin(t * 1.5 + phase) * 0.15;
+          stem.rotation.x = Math.cos(t * 1.2 + phase) * 0.1;
+        });
+        anim(petal, (t) => {
+          petal.position.y = sh * 2 + 0.01 + Math.sin(t * 2.0 + phase) * 0.008;
+          (petal.material as THREE.MeshStandardMaterial).emissiveIntensity =
+            0.3 + Math.sin(t * 2.5 + phase) * 0.3;
         });
       }
+    }
+
+    const midX = cluster.reduce((s, [gx]) => s + gpos(gx, 0)[0], 0) / cluster.length;
+    const midZ = cluster.reduce((s, [, gy]) => s + gpos(0, gy)[1], 0) / cluster.length;
+    const butterflyCount = Math.min(cluster.length, 4);
+    const wingColors = [0xff88cc, 0xffdd66, 0x88ccff, 0xccff88];
+    for (let bi = 0; bi < butterflyCount; bi++) {
+      const wingMat = new THREE.MeshStandardMaterial({
+        color: wingColors[bi % wingColors.length],
+        emissive: wingColors[bi % wingColors.length],
+        emissiveIntensity: 0.6,
+        transparent: true,
+        opacity: 0.8,
+        side: THREE.DoubleSide,
+      });
+      const wingL = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.035), wingMat);
+      const wingR = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.035), wingMat);
+      const body = new THREE.Group();
+      wingL.position.x = -0.025;
+      wingR.position.x = 0.025;
+      body.add(wingL);
+      body.add(wingR);
+      root.add(body);
+      const bPhase = bi * 1.57 + cluster[0][0] * 0.7;
+      const bRadius = 0.5 + bi * 0.3;
+      const bSpeed = 0.3 + bi * 0.08;
+      anim(body, (t) => {
+        const a = t * bSpeed + bPhase;
+        body.position.set(
+          midX + Math.cos(a) * bRadius + Math.sin(t * 0.7 + bPhase) * 0.2,
+          0.25 + Math.sin(t * 1.5 + bPhase) * 0.12,
+          midZ + Math.sin(a) * bRadius + Math.cos(t * 0.9 + bPhase) * 0.2
+        );
+        body.rotation.y = a + Math.PI / 2;
+        const wingAngle = Math.sin(t * 12.0 + bPhase) * 0.6;
+        wingL.rotation.y = -wingAngle;
+        wingR.rotation.y = wingAngle;
+      });
     }
   }
 }
@@ -392,35 +457,103 @@ function ruleLotusGarden(grid: Grid, root: THREE.Group) {
   const clusters = findClusters(grid, "pond");
   for (const cluster of clusters) {
     if (cluster.length < 3) continue;
+    const tileSet = new Set(cluster.map(([cx, cy]) => `${cx},${cy}`));
+
+    const waterMat = new THREE.MeshStandardMaterial({
+      color: 0x1a4d8a,
+      emissive: 0x1a3d6f,
+      emissiveIntensity: 0.6,
+      roughness: 0.15,
+      metalness: 0.5,
+      transparent: true,
+      opacity: 0.82,
+    });
     for (const [cx, cy] of cluster) {
       const [px, pz] = gpos(cx, cy);
       const water = new THREE.Mesh(
-        new THREE.BoxGeometry(0.96, 0.01, 0.96),
-        new THREE.MeshStandardMaterial({
-          color: 0x2255aa,
-          emissive: 0x224488,
-          emissiveIntensity: 0.4,
-          transparent: true,
-          opacity: 0.4,
-        })
+        new THREE.PlaneGeometry(1.04, 1.04),
+        waterMat
       );
-      water.position.set(px, 0.025, pz);
+      water.rotation.x = -Math.PI / 2;
+      water.position.set(px, 0.045, pz);
       root.add(water);
     }
+    anim(root, (t) => {
+      waterMat.emissiveIntensity = 0.5 + Math.sin(t * 1.5) * 0.2;
+    });
+
+    for (const [cx, cy] of cluster) {
+      const [px, pz] = gpos(cx, cy);
+      for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+        if (tileSet.has(`${cx + dx},${cy + dy}`)) continue;
+        const edgeX = px + dx * 0.48;
+        const edgeZ = pz + dy * 0.48;
+        const stoneCount = 3 + ((cx * 7 + cy * 3 + dx + dy) % 3);
+        const isXEdge = dx !== 0;
+        for (let si = 0; si < stoneCount; si++) {
+          const spread = (si / (stoneCount - 1) - 0.5) * 0.8;
+          const stone = new THREE.Mesh(
+            new THREE.SphereGeometry(0.04 + ((si * 3 + cx) % 3) * 0.015, 5, 4),
+            new THREE.MeshStandardMaterial({
+              color: 0x6a7a6a + ((si * 111) % 0x101010),
+              roughness: 0.95,
+              flatShading: true,
+            })
+          );
+          stone.scale.y = 0.5;
+          stone.position.set(
+            edgeX + (isXEdge ? 0 : spread) + (Math.sin(si * 2.7) * 0.03),
+            0.05,
+            edgeZ + (isXEdge ? spread : 0) + (Math.cos(si * 3.1) * 0.03)
+          );
+          root.add(stone);
+        }
+      }
+    }
+
+    const midX = cluster.reduce((s, [cx]) => s + gpos(cx, 0)[0], 0) / cluster.length;
+    const midZ = cluster.reduce((s, [, cy]) => s + gpos(0, cy)[1], 0) / cluster.length;
+
+    for (let ri = 0; ri < 3; ri++) {
+      const rippleMat = new THREE.MeshStandardMaterial({
+        color: 0x88ccff,
+        emissive: 0x88ccff,
+        emissiveIntensity: 0.8,
+        transparent: true,
+        opacity: 0.0,
+      });
+      const ripple = new THREE.Mesh(
+        new THREE.TorusGeometry(0.05, 0.008, 4, 16),
+        rippleMat
+      );
+      ripple.rotation.x = -Math.PI / 2;
+      const [rcx, rcy] = cluster[ri % cluster.length];
+      const [rpx, rpz] = gpos(rcx, rcy);
+      ripple.position.set(rpx, 0.05, rpz);
+      root.add(ripple);
+      const rPhase = ri * 2.1;
+      anim(ripple, (t) => {
+        const prog = ((t * 0.4 + rPhase) % 3.0) / 3.0;
+        const scale = 0.5 + prog * 6.0;
+        ripple.scale.setScalar(scale);
+        rippleMat.opacity = 0.35 * Math.max(0, 1.0 - prog);
+      });
+    }
+
     for (let i = 0; i < cluster.length; i++) {
       const [cx, cy] = cluster[i];
       const [px, pz] = gpos(cx, cy);
       if (i % 2 === 0) {
+        const ox = ((cx * 3 + cy * 7) % 5 - 2) * 0.1;
+        const oz = ((cx * 7 + cy * 3) % 5 - 2) * 0.1;
         const pad = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.12, 0.12, 0.01, 8),
+          new THREE.CylinderGeometry(0.1, 0.11, 0.008, 8),
           new THREE.MeshStandardMaterial({ color: 0x33aa44, roughness: 0.8 })
         );
-        const ox = ((cx * 3 + cy * 7) % 5 - 2) * 0.08;
-        const oz = ((cx * 7 + cy * 3) % 5 - 2) * 0.08;
-        pad.position.set(px + ox, 0.04, pz + oz);
+        pad.position.set(px + ox, 0.05, pz + oz);
         root.add(pad);
         const bloom = new THREE.Mesh(
-          new THREE.SphereGeometry(0.04, 6, 4, 0, Math.PI * 2, 0, Math.PI / 2),
+          new THREE.SphereGeometry(0.035, 6, 4, 0, Math.PI * 2, 0, Math.PI / 2),
           new THREE.MeshStandardMaterial({
             color: 0xff88aa,
             emissive: 0xff88aa,
@@ -430,18 +563,24 @@ function ruleLotusGarden(grid: Grid, root: THREE.Group) {
         bloom.position.set(px + ox, 0.06, pz + oz);
         root.add(bloom);
         const phase = cx * 1.3 + cy * 2.1;
-        const baseY = 0.04;
         anim(pad, (t) => {
-          pad.position.y = baseY + Math.sin(t * 1.2 + phase) * 0.008;
+          pad.position.y = 0.05 + Math.sin(t * 1.2 + phase) * 0.006;
           pad.rotation.y = Math.sin(t * 0.5 + phase) * 0.05;
         });
         anim(bloom, (t) => {
-          bloom.position.y = 0.06 + Math.sin(t * 1.2 + phase) * 0.008;
+          bloom.position.y = 0.06 + Math.sin(t * 1.2 + phase) * 0.006;
           (bloom.material as THREE.MeshStandardMaterial).emissiveIntensity =
             0.5 + Math.sin(t * 2.0 + phase) * 0.3;
         });
       }
     }
+
+    const waterLight = new THREE.PointLight(0x3388cc, 0.5, 3.0, 2.0);
+    waterLight.position.set(midX, 0.3, midZ);
+    root.add(waterLight);
+    anim(waterLight, (t) => {
+      waterLight.intensity = 0.4 + Math.sin(t * 1.2) * 0.2;
+    });
   }
 }
 

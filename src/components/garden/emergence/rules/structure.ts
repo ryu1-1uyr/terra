@@ -593,16 +593,58 @@ function ruleWindmillHill(grid: Grid, root: THREE.Group) {
       if (adjTrees.length === 0) continue;
       const [px, pz] = gpos(gx, gy);
       const hill = new THREE.Mesh(
-        new THREE.SphereGeometry(0.4, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2),
+        new THREE.SphereGeometry(0.55, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2),
         new THREE.MeshStandardMaterial({
           color: 0x3a7a3a,
           roughness: 0.95,
           flatShading: true,
         })
       );
-      hill.position.set(px, 0.0, pz);
+      hill.position.set(px, -0.05, pz);
       hill.receiveShadow = true;
       root.add(hill);
+
+      const wildColors = [0xffdd44, 0xff88aa, 0xaaddff, 0xffffff];
+      for (let i = 0; i < 8; i++) {
+        const angle = (i / 8) * Math.PI * 2 + gx * 0.7;
+        const r = 0.25 + (i % 3) * 0.08;
+        const fx = px + Math.cos(angle) * r;
+        const fz = pz + Math.sin(angle) * r;
+        const wildFlower = new THREE.Mesh(
+          new THREE.SphereGeometry(0.018, 4, 4),
+          new THREE.MeshStandardMaterial({
+            color: wildColors[i % wildColors.length],
+            emissive: wildColors[i % wildColors.length],
+            emissiveIntensity: 0.3,
+          })
+        );
+        const hillH = Math.sqrt(Math.max(0, 0.55 * 0.55 - r * r)) * 0.7;
+        wildFlower.position.set(fx, hillH + 0.02, fz);
+        root.add(wildFlower);
+        const phase = i * 0.8 + gx * 1.3;
+        anim(wildFlower, (t) => {
+          wildFlower.position.y = hillH + 0.02 + Math.sin(t * 2.0 + phase) * 0.01;
+        });
+      }
+
+      for (const tree of adjTrees) {
+        const [tx, tz] = gpos(tree.gx, tree.gy);
+        const mx = (px + tx) / 2;
+        const mz = (pz + tz) / 2;
+        const path = new THREE.Mesh(
+          new THREE.PlaneGeometry(0.12, 0.6),
+          new THREE.MeshStandardMaterial({
+            color: 0x8a7a5a,
+            roughness: 1,
+            transparent: true,
+            opacity: 0.5,
+          })
+        );
+        path.rotation.x = -Math.PI / 2;
+        path.rotation.z = Math.atan2(tz - pz, tx - px) + Math.PI / 2;
+        path.position.set(mx, 0.007, mz);
+        root.add(path);
+      }
     }
   }
 }
