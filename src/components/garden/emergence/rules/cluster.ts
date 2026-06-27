@@ -1,17 +1,17 @@
 import * as THREE from "three";
 import { gpos } from "../../grid";
-import { GRID } from "../../grid";
 import type { Grid, EmergenceRule } from "../detect";
 import { neighbors, findClusters, ADJ8 } from "../detect";
 import { anim } from "../anim";
 import { addLanternPost, addMushroom, addPaperLantern } from "../helpers";
 
 function ruleTown(grid: Grid, root: THREE.Group) {
+  const gridSize = grid.length;
   const clusters = findClusters(grid, "house");
   for (const cluster of clusters) {
     if (cluster.length < 3) continue;
     for (const [gx, gy] of cluster) {
-      const [px, pz] = gpos(gx, gy);
+      const [px, pz] = gpos(gx, gy, gridSize);
       const pave = new THREE.Mesh(
         new THREE.BoxGeometry(0.98, 0.02, 0.98),
         new THREE.MeshStandardMaterial({ color: 0x3a4560, roughness: 0.95 })
@@ -25,12 +25,12 @@ function ruleTown(grid: Grid, root: THREE.Group) {
         (n) => n.cell.type === "house"
       );
       if (adjHouses.length >= 2) {
-        const [px, pz] = gpos(gx, gy);
+        const [px, pz] = gpos(gx, gy, gridSize);
         addLanternPost(root, px + 0.38, pz + 0.38, 0xffd96a);
       }
     }
-    const cx = cluster.reduce((s, [gx]) => s + gpos(gx, 0)[0], 0) / cluster.length;
-    const cz = cluster.reduce((s, [, gy]) => s + gpos(0, gy)[1], 0) / cluster.length;
+    const cx = cluster.reduce((s, [gx]) => s + gpos(gx, 0, gridSize)[0], 0) / cluster.length;
+    const cz = cluster.reduce((s, [, gy]) => s + gpos(0, gy, gridSize)[1], 0) / cluster.length;
     const count = Math.min(cluster.length, 5);
     const vColors = [0xffcc88, 0x88ccff, 0xff88aa, 0xaaff88, 0xddaaff];
     for (let i = 0; i < count; i++) {
@@ -58,6 +58,7 @@ function ruleTown(grid: Grid, root: THREE.Group) {
 }
 
 function ruleNightMarket(grid: Grid, root: THREE.Group) {
+  const gridSize = grid.length;
   const clusters = findClusters(grid, "house");
   for (const cluster of clusters) {
     if (cluster.length < 4) continue;
@@ -66,7 +67,7 @@ function ruleNightMarket(grid: Grid, root: THREE.Group) {
         (n) => n.cell.type === "house"
       ).length;
       if (adjCount < 2) continue;
-      const [px, pz] = gpos(gx, gy);
+      const [px, pz] = gpos(gx, gy, gridSize);
       const colors = [0xff6b9d, 0xffd93d, 0x6bcb77, 0x4d96ff];
       const col = colors[(gx * 7 + gy * 3) % colors.length];
       const awning = new THREE.Mesh(
@@ -84,11 +85,12 @@ function ruleNightMarket(grid: Grid, root: THREE.Group) {
 }
 
 function ruleForest(grid: Grid, root: THREE.Group) {
+  const gridSize = grid.length;
   const clusters = findClusters(grid, "tree");
   for (const cluster of clusters) {
     if (cluster.length < 3) continue;
     for (const [gx, gy] of cluster) {
-      const [px, pz] = gpos(gx, gy);
+      const [px, pz] = gpos(gx, gy, gridSize);
       const bush = new THREE.Mesh(
         new THREE.SphereGeometry(0.12, 6, 4),
         new THREE.MeshStandardMaterial({
@@ -112,7 +114,7 @@ function ruleForest(grid: Grid, root: THREE.Group) {
       }
     }
     for (const [gx, gy] of cluster) {
-      const [px, pz] = gpos(gx, gy);
+      const [px, pz] = gpos(gx, gy, gridSize);
       const moss = new THREE.Mesh(
         new THREE.BoxGeometry(0.94, 0.015, 0.94),
         new THREE.MeshStandardMaterial({
@@ -129,12 +131,13 @@ function ruleForest(grid: Grid, root: THREE.Group) {
 }
 
 function ruleFlowerField(grid: Grid, root: THREE.Group) {
+  const gridSize = grid.length;
   const clusters = findClusters(grid, "flower");
   for (const cluster of clusters) {
     if (cluster.length < 3) continue;
 
     for (const [gx, gy] of cluster) {
-      const [px, pz] = gpos(gx, gy);
+      const [px, pz] = gpos(gx, gy, gridSize);
       const carpet = new THREE.Mesh(
         new THREE.PlaneGeometry(0.98, 0.98),
         new THREE.MeshStandardMaterial({
@@ -186,8 +189,8 @@ function ruleFlowerField(grid: Grid, root: THREE.Group) {
       }
     }
 
-    const midX = cluster.reduce((s, [gx]) => s + gpos(gx, 0)[0], 0) / cluster.length;
-    const midZ = cluster.reduce((s, [, gy]) => s + gpos(0, gy)[1], 0) / cluster.length;
+    const midX = cluster.reduce((s, [gx]) => s + gpos(gx, 0, gridSize)[0], 0) / cluster.length;
+    const midZ = cluster.reduce((s, [, gy]) => s + gpos(0, gy, gridSize)[1], 0) / cluster.length;
     const butterflyCount = Math.min(cluster.length, 4);
     const wingColors = [0xff88cc, 0xffdd66, 0x88ccff, 0xccff88];
     for (let bi = 0; bi < butterflyCount; bi++) {
@@ -227,14 +230,15 @@ function ruleFlowerField(grid: Grid, root: THREE.Group) {
 }
 
 function ruleGardenEstate(grid: Grid, root: THREE.Group) {
-  for (let x = 0; x < GRID; x++) {
-    for (let y = 0; y < GRID; y++) {
+  const gridSize = grid.length;
+  for (let x = 0; x < gridSize; x++) {
+    for (let y = 0; y < gridSize; y++) {
       if (grid[x][y]?.type !== "house") continue;
       const adjFlowers = neighbors(grid, x, y).filter(
         (n) => n.cell.type === "flower"
       );
       if (adjFlowers.length === 0) continue;
-      const [px, pz] = gpos(x, y);
+      const [px, pz] = gpos(x, y, gridSize);
       const hedgeMat = new THREE.MeshStandardMaterial({
         color: 0x2e6b3a,
         roughness: 0.9,
@@ -264,27 +268,29 @@ function ruleGardenEstate(grid: Grid, root: THREE.Group) {
 }
 
 function ruleStreetTree(grid: Grid, root: THREE.Group) {
-  for (let x = 0; x < GRID; x++) {
-    for (let y = 0; y < GRID; y++) {
+  const gridSize = grid.length;
+  for (let x = 0; x < gridSize; x++) {
+    for (let y = 0; y < gridSize; y++) {
       if (grid[x][y]?.type !== "tree") continue;
       const adjHouses = neighbors(grid, x, y).filter(
         (n) => n.cell.type === "house"
       );
       if (adjHouses.length === 0) continue;
-      const [px, pz] = gpos(x, y);
+      const [px, pz] = gpos(x, y, gridSize);
       addLanternPost(root, px - 0.35, pz - 0.35, 0xffe8c2);
     }
   }
 }
 
 function ruleSacredTree(grid: Grid, root: THREE.Group) {
-  for (let x = 0; x < GRID; x++) {
-    for (let y = 0; y < GRID; y++) {
+  const gridSize = grid.length;
+  for (let x = 0; x < gridSize; x++) {
+    for (let y = 0; y < gridSize; y++) {
       const cell = grid[x][y];
       if (cell?.type !== "tree" || cell.growth < 1.5) continue;
       const adjObjects = neighbors(grid, x, y, ADJ8);
       if (adjObjects.length > 0) continue;
-      const [px, pz] = gpos(x, y);
+      const [px, pz] = gpos(x, y, gridSize);
       const toriiMat = new THREE.MeshStandardMaterial({
         color: 0xcc3333,
         roughness: 0.7,
@@ -337,11 +343,12 @@ function ruleSacredTree(grid: Grid, root: THREE.Group) {
 }
 
 function ruleAvenue(grid: Grid, root: THREE.Group) {
+  const gridSize = grid.length;
   const visited = new Set<string>();
-  for (let y = 0; y < GRID; y++) {
+  for (let y = 0; y < gridSize; y++) {
     let run: number[] = [];
-    for (let x = 0; x <= GRID; x++) {
-      if (x < GRID && grid[x][y]?.type === "tree") {
+    for (let x = 0; x <= gridSize; x++) {
+      if (x < gridSize && grid[x][y]?.type === "tree") {
         run.push(x);
       } else {
         if (run.length >= 3) {
@@ -349,8 +356,8 @@ function ruleAvenue(grid: Grid, root: THREE.Group) {
             const key = `${run[i]},${y}-${run[i + 1]},${y}`;
             if (visited.has(key)) continue;
             visited.add(key);
-            const [p1x] = gpos(run[i], y);
-            const [p2x, pz] = gpos(run[i + 1], y);
+            const [p1x] = gpos(run[i], y, gridSize);
+            const [p2x, pz] = gpos(run[i + 1], y, gridSize);
             const mx = (p1x + p2x) / 2;
             addPaperLantern(root, mx, pz);
           }
@@ -359,10 +366,10 @@ function ruleAvenue(grid: Grid, root: THREE.Group) {
       }
     }
   }
-  for (let x = 0; x < GRID; x++) {
+  for (let x = 0; x < gridSize; x++) {
     let run: number[] = [];
-    for (let y = 0; y <= GRID; y++) {
-      if (y < GRID && grid[x][y]?.type === "tree") {
+    for (let y = 0; y <= gridSize; y++) {
+      if (y < gridSize && grid[x][y]?.type === "tree") {
         run.push(y);
       } else {
         if (run.length >= 3) {
@@ -370,8 +377,8 @@ function ruleAvenue(grid: Grid, root: THREE.Group) {
             const key = `${x},${run[i]}-${x},${run[i + 1]}`;
             if (visited.has(key)) continue;
             visited.add(key);
-            const [px, p1z] = gpos(x, run[i]);
-            const [, p2z] = gpos(x, run[i + 1]);
+            const [px, p1z] = gpos(x, run[i], gridSize);
+            const [, p2z] = gpos(x, run[i + 1], gridSize);
             const mz = (p1z + p2z) / 2;
             addPaperLantern(root, px, mz);
           }
@@ -383,13 +390,14 @@ function ruleAvenue(grid: Grid, root: THREE.Group) {
 }
 
 function rulePlaza(grid: Grid, root: THREE.Group) {
-  for (let x = 0; x < GRID; x++) {
-    for (let y = 0; y < GRID; y++) {
+  const gridSize = grid.length;
+  for (let x = 0; x < gridSize; x++) {
+    for (let y = 0; y < gridSize; y++) {
       if (grid[x][y] !== null) continue;
       const adj = neighbors(grid, x, y);
       const types = new Set(adj.map((n) => n.cell.type));
       if (adj.length < 3 || types.size < 2) continue;
-      const [px, pz] = gpos(x, y);
+      const [px, pz] = gpos(x, y, gridSize);
       const base = new THREE.Mesh(
         new THREE.CylinderGeometry(0.22, 0.25, 0.08, 8),
         new THREE.MeshStandardMaterial({ color: 0x7a8fa6, roughness: 0.5 })
@@ -454,6 +462,7 @@ function rulePlaza(grid: Grid, root: THREE.Group) {
 }
 
 function ruleLotusGarden(grid: Grid, root: THREE.Group) {
+  const gridSize = grid.length;
   const clusters = findClusters(grid, "pond");
   for (const cluster of clusters) {
     if (cluster.length < 3) continue;
@@ -469,7 +478,7 @@ function ruleLotusGarden(grid: Grid, root: THREE.Group) {
       opacity: 0.82,
     });
     for (const [cx, cy] of cluster) {
-      const [px, pz] = gpos(cx, cy);
+      const [px, pz] = gpos(cx, cy, gridSize);
       const water = new THREE.Mesh(
         new THREE.PlaneGeometry(1.04, 1.04),
         waterMat
@@ -483,7 +492,7 @@ function ruleLotusGarden(grid: Grid, root: THREE.Group) {
     });
 
     for (const [cx, cy] of cluster) {
-      const [px, pz] = gpos(cx, cy);
+      const [px, pz] = gpos(cx, cy, gridSize);
       for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
         if (tileSet.has(`${cx + dx},${cy + dy}`)) continue;
         const edgeX = px + dx * 0.48;
@@ -511,8 +520,8 @@ function ruleLotusGarden(grid: Grid, root: THREE.Group) {
       }
     }
 
-    const midX = cluster.reduce((s, [cx]) => s + gpos(cx, 0)[0], 0) / cluster.length;
-    const midZ = cluster.reduce((s, [, cy]) => s + gpos(0, cy)[1], 0) / cluster.length;
+    const midX = cluster.reduce((s, [cx]) => s + gpos(cx, 0, gridSize)[0], 0) / cluster.length;
+    const midZ = cluster.reduce((s, [, cy]) => s + gpos(0, cy, gridSize)[1], 0) / cluster.length;
 
     for (let ri = 0; ri < 3; ri++) {
       const rippleMat = new THREE.MeshStandardMaterial({
@@ -528,7 +537,7 @@ function ruleLotusGarden(grid: Grid, root: THREE.Group) {
       );
       ripple.rotation.x = -Math.PI / 2;
       const [rcx, rcy] = cluster[ri % cluster.length];
-      const [rpx, rpz] = gpos(rcx, rcy);
+      const [rpx, rpz] = gpos(rcx, rcy, gridSize);
       ripple.position.set(rpx, 0.05, rpz);
       root.add(ripple);
       const rPhase = ri * 2.1;
@@ -542,7 +551,7 @@ function ruleLotusGarden(grid: Grid, root: THREE.Group) {
 
     for (let i = 0; i < cluster.length; i++) {
       const [cx, cy] = cluster[i];
-      const [px, pz] = gpos(cx, cy);
+      const [px, pz] = gpos(cx, cy, gridSize);
       if (i % 2 === 0) {
         const ox = ((cx * 3 + cy * 7) % 5 - 2) * 0.1;
         const oz = ((cx * 7 + cy * 3) % 5 - 2) * 0.1;

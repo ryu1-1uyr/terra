@@ -1,18 +1,19 @@
 import * as THREE from "three";
-import { GRID, gpos } from "../../grid";
+import { gpos } from "../../grid";
 import type { Grid, EmergenceRule } from "../detect";
 import { neighbors, findClusters, ADJ8 } from "../detect";
 import { anim } from "../anim";
 
 function ruleTowerGrove(grid: Grid, root: THREE.Group) {
-  for (let x = 0; x < GRID; x++) {
-    for (let y = 0; y < GRID; y++) {
+  const gridSize = grid.length;
+  for (let x = 0; x < gridSize; x++) {
+    for (let y = 0; y < gridSize; y++) {
       if (grid[x][y]?.type !== "tower") continue;
       const adjTrees = neighbors(grid, x, y, ADJ8).filter(
         (n) => n.cell.type === "tree"
       );
       if (adjTrees.length < 2) continue;
-      const [px, pz] = gpos(x, y);
+      const [px, pz] = gpos(x, y, gridSize);
       const growth = grid[x][y]!.growth;
       const vineCount = Math.floor(6 + growth * 4);
       const maxH = 0.4 + growth * 0.25;
@@ -69,14 +70,15 @@ function ruleTowerGrove(grid: Grid, root: THREE.Group) {
 }
 
 function ruleFlowerClock(grid: Grid, root: THREE.Group) {
-  for (let x = 0; x < GRID; x++) {
-    for (let y = 0; y < GRID; y++) {
+  const gridSize = grid.length;
+  for (let x = 0; x < gridSize; x++) {
+    for (let y = 0; y < gridSize; y++) {
       if (grid[x][y]?.type !== "flower") continue;
       const adjTowers = neighbors(grid, x, y).filter(
         (n) => n.cell.type === "tower"
       );
       if (adjTowers.length === 0) continue;
-      const [px, pz] = gpos(x, y);
+      const [px, pz] = gpos(x, y, gridSize);
       const ring = new THREE.Mesh(
         new THREE.TorusGeometry(0.2, 0.015, 6, 16),
         new THREE.MeshStandardMaterial({
@@ -114,8 +116,8 @@ function ruleSkybridges(grid: Grid, root: THREE.Group) {
         if (visited.has(key)) continue;
         visited.add(key);
 
-        const [p1x, p1z] = gpos(x, y);
-        const [p2x, p2z] = gpos(adj.gx, adj.gy);
+        const [p1x, p1z] = gpos(x, y, gridSize);
+        const [p2x, p2z] = gpos(adj.gx, adj.gy, gridSize);
         const mx = (p1x + p2x) / 2;
         const mz = (p1z + p2z) / 2;
         const dx = p2x - p1x;
@@ -217,6 +219,7 @@ function ruleSkybridges(grid: Grid, root: THREE.Group) {
 }
 
 function ruleCathedral(grid: Grid, root: THREE.Group) {
+  const gridSize = grid.length;
   const clusters = findClusters(grid, "tower");
   for (const cluster of clusters) {
     if (cluster.length < 4) continue;
@@ -233,7 +236,7 @@ function ruleCathedral(grid: Grid, root: THREE.Group) {
         centerGy = cy;
       }
     }
-    const [px, pz] = gpos(centerGx, centerGy);
+    const [px, pz] = gpos(centerGx, centerGy, gridSize);
     const spire = new THREE.Mesh(
       new THREE.ConeGeometry(0.08, 0.6, 6),
       new THREE.MeshStandardMaterial({
@@ -309,7 +312,7 @@ function ruleFortress(grid: Grid, root: THREE.Group) {
         [gx, gy], [gx + 1, gy], [gx, gy + 1], [gx + 1, gy + 1],
       ];
       for (const [mx, my] of members) {
-        const [px, pz] = gpos(mx, my);
+        const [px, pz] = gpos(mx, my, gridSize);
         removeObjectAt(root, px, pz);
       }
 
@@ -439,7 +442,7 @@ function ruleParadise(grid: Grid, root: THREE.Group) {
         [gx, gy], [flowerN.gx, flowerN.gy],
         [treeN.gx, treeN.gy], [houseN.gx, houseN.gy],
       ];
-      const tiles = members.map(([cx, cy]) => gpos(cx, cy));
+      const tiles = members.map(([cx, cy]) => gpos(cx, cy, gridSize));
       const midX = tiles.reduce((s, [x]) => s + x, 0) / 4;
       const midZ = tiles.reduce((s, [, z]) => s + z, 0) / 4;
 
@@ -627,7 +630,7 @@ function ruleRuins(grid: Grid, root: THREE.Group) {
         [gx, gy], [statueN.gx, statueN.gy],
         [treeN.gx, treeN.gy], [flowerN.gx, flowerN.gy],
       ];
-      const tiles = members.map(([cx, cy]) => gpos(cx, cy));
+      const tiles = members.map(([cx, cy]) => gpos(cx, cy, gridSize));
       const midX = tiles.reduce((s, [x]) => s + x, 0) / 4;
       const midZ = tiles.reduce((s, [, z]) => s + z, 0) / 4;
 
@@ -896,7 +899,7 @@ function ruleCastleBanner(grid: Grid, root: THREE.Group) {
         const members: [number, number][] = [
           [gx, gy], [t2.gx, t2.gy], [houseN.gx, houseN.gy],
         ];
-        const tiles = members.map(([cx, cy]) => gpos(cx, cy));
+        const tiles = members.map(([cx, cy]) => gpos(cx, cy, gridSize));
         const midX = tiles.reduce((s, [x]) => s + x, 0) / 3;
         const midZ = tiles.reduce((s, [, z]) => s + z, 0) / 3;
 
@@ -1019,21 +1022,22 @@ function ruleCastleBanner(grid: Grid, root: THREE.Group) {
 }
 
 function ruleCastleWall(grid: Grid, root: THREE.Group) {
-  for (let gx = 0; gx < GRID; gx++) {
-    for (let gy = 0; gy < GRID; gy++) {
+  const gridSize = grid.length;
+  for (let gx = 0; gx < gridSize; gx++) {
+    for (let gy = 0; gy < gridSize; gy++) {
       if (grid[gx][gy]?.type !== "tower") continue;
       const adjHouses = neighbors(grid, gx, gy).filter(
         (n) => n.cell.type === "house"
       );
       if (adjHouses.length === 0) continue;
-      const [px, pz] = gpos(gx, gy);
+      const [px, pz] = gpos(gx, gy, gridSize);
       const wallMat = new THREE.MeshStandardMaterial({
         color: 0x6a6a7a,
         roughness: 0.85,
         metalness: 0.1,
       });
       for (const h of adjHouses) {
-        const [hx, hz] = gpos(h.gx, h.gy);
+        const [hx, hz] = gpos(h.gx, h.gy, gridSize);
         const mx = (px + hx) / 2;
         const mz = (pz + hz) / 2;
         const isX = gx !== h.gx;
@@ -1056,14 +1060,15 @@ function ruleCastleWall(grid: Grid, root: THREE.Group) {
 }
 
 function ruleWindmillHill(grid: Grid, root: THREE.Group) {
-  for (let gx = 0; gx < GRID; gx++) {
-    for (let gy = 0; gy < GRID; gy++) {
+  const gridSize = grid.length;
+  for (let gx = 0; gx < gridSize; gx++) {
+    for (let gy = 0; gy < gridSize; gy++) {
       if (grid[gx][gy]?.type !== "windmill") continue;
       const adjTrees = neighbors(grid, gx, gy, ADJ8).filter(
         (n) => n.cell.type === "tree"
       );
       if (adjTrees.length === 0) continue;
-      const [px, pz] = gpos(gx, gy);
+      const [px, pz] = gpos(gx, gy, gridSize);
       const hill = new THREE.Mesh(
         new THREE.SphereGeometry(0.55, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2),
         new THREE.MeshStandardMaterial({
@@ -1100,7 +1105,7 @@ function ruleWindmillHill(grid: Grid, root: THREE.Group) {
       }
 
       for (const tree of adjTrees) {
-        const [tx, tz] = gpos(tree.gx, tree.gy);
+        const [tx, tz] = gpos(tree.gx, tree.gy, gridSize);
         const mx = (px + tx) / 2;
         const mz = (pz + tz) / 2;
         const path = new THREE.Mesh(

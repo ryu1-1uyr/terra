@@ -1,18 +1,19 @@
 import * as THREE from "three";
-import { GRID, gpos } from "../../grid";
+import { gpos } from "../../grid";
 import type { Grid, EmergenceRule } from "../detect";
 import { neighbors, ADJ8 } from "../detect";
 import { anim } from "../anim";
 import { addPaperLantern } from "../helpers";
 
 function ruleWheatField(grid: Grid, root: THREE.Group) {
-  for (let gx = 0; gx < GRID; gx++) {
-    for (let gy = 0; gy < GRID; gy++) {
+  const gridSize = grid.length;
+  for (let gx = 0; gx < gridSize; gx++) {
+    for (let gy = 0; gy < gridSize; gy++) {
       const c = grid[gx][gy];
       if (!c || c.type !== "windmill") continue;
       const adj = neighbors(grid, gx, gy);
       if (!adj.some((n) => n.cell.type === "flower")) continue;
-      const [px, pz] = gpos(gx, gy);
+      const [px, pz] = gpos(gx, gy, gridSize);
       const wheat = new THREE.Mesh(
         new THREE.PlaneGeometry(0.9, 0.9),
         new THREE.MeshStandardMaterial({
@@ -49,13 +50,14 @@ function ruleWheatField(grid: Grid, root: THREE.Group) {
 }
 
 function ruleSpiritOrbs(grid: Grid, root: THREE.Group) {
-  for (let gx = 0; gx < GRID; gx++) {
-    for (let gy = 0; gy < GRID; gy++) {
+  const gridSize = grid.length;
+  for (let gx = 0; gx < gridSize; gx++) {
+    for (let gy = 0; gy < gridSize; gy++) {
       const c = grid[gx][gy];
       if (!c || c.type !== "shrine") continue;
       const adj = neighbors(grid, gx, gy, ADJ8);
       if (!adj.some((n) => n.cell.type === "tree")) continue;
-      const [px, pz] = gpos(gx, gy);
+      const [px, pz] = gpos(gx, gy, gridSize);
       const orbMat = new THREE.MeshStandardMaterial({
         color: 0x88ffcc,
         emissive: 0x88ffcc,
@@ -91,9 +93,10 @@ function ruleSpiritOrbs(grid: Grid, root: THREE.Group) {
 }
 
 function ruleLitWalkway(grid: Grid, root: THREE.Group) {
+  const gridSize = grid.length;
   const visited = new Set<string>();
-  for (let gx = 0; gx < GRID; gx++) {
-    for (let gy = 0; gy < GRID; gy++) {
+  for (let gx = 0; gx < gridSize; gx++) {
+    for (let gy = 0; gy < gridSize; gy++) {
       const c = grid[gx][gy];
       if (!c || c.type !== "lamp") continue;
       const key = `${gx},${gy}`;
@@ -104,8 +107,8 @@ function ruleLitWalkway(grid: Grid, root: THREE.Group) {
       visited.add(key);
       for (const n of lampNeighbors) {
         visited.add(`${n.gx},${n.gy}`);
-        const [px1, pz1] = gpos(gx, gy);
-        const [px2, pz2] = gpos(n.gx, n.gy);
+        const [px1, pz1] = gpos(gx, gy, gridSize);
+        const [px2, pz2] = gpos(n.gx, n.gy, gridSize);
         const mx = (px1 + px2) / 2;
         const mz = (pz1 + pz2) / 2;
         const walkway = new THREE.Mesh(
@@ -129,13 +132,14 @@ function ruleLitWalkway(grid: Grid, root: THREE.Group) {
 }
 
 function ruleReflection(grid: Grid, root: THREE.Group) {
-  for (let gx = 0; gx < GRID; gx++) {
-    for (let gy = 0; gy < GRID; gy++) {
+  const gridSize = grid.length;
+  for (let gx = 0; gx < gridSize; gx++) {
+    for (let gy = 0; gy < gridSize; gy++) {
       const c = grid[gx][gy];
       if (!c || c.type !== "pond") continue;
       const adj = neighbors(grid, gx, gy);
       if (!adj.some((n) => n.cell.type === "statue")) continue;
-      const [px, pz] = gpos(gx, gy);
+      const [px, pz] = gpos(gx, gy, gridSize);
       for (let i = 0; i < 8; i++) {
         const sparkle = new THREE.Mesh(
           new THREE.SphereGeometry(0.018, 4, 4),
@@ -166,13 +170,14 @@ function ruleReflection(grid: Grid, root: THREE.Group) {
 }
 
 function ruleMonumentAura(grid: Grid, root: THREE.Group) {
-  for (let gx = 0; gx < GRID; gx++) {
-    for (let gy = 0; gy < GRID; gy++) {
+  const gridSize = grid.length;
+  for (let gx = 0; gx < gridSize; gx++) {
+    for (let gy = 0; gy < gridSize; gy++) {
       const c = grid[gx][gy];
       if (!c || c.type !== "statue" || c.growth < 1.0) continue;
       const adj = neighbors(grid, gx, gy, ADJ8);
       if (adj.some((n) => n.cell.type === "statue")) continue;
-      const [px, pz] = gpos(gx, gy);
+      const [px, pz] = gpos(gx, gy, gridSize);
       for (let i = 0; i < 6; i++) {
         const a = (i / 6) * Math.PI * 2;
         const pillarMat = new THREE.MeshStandardMaterial({
@@ -200,14 +205,15 @@ function ruleMonumentAura(grid: Grid, root: THREE.Group) {
 }
 
 function ruleWindValley(grid: Grid, root: THREE.Group) {
-  for (let gx = 0; gx < GRID; gx++) {
-    for (let gy = 0; gy < GRID; gy++) {
+  const gridSize = grid.length;
+  for (let gx = 0; gx < gridSize; gx++) {
+    for (let gy = 0; gy < gridSize; gy++) {
       if (grid[gx][gy]?.type !== "windmill") continue;
       const adj = neighbors(grid, gx, gy, ADJ8);
       const hasFlower = adj.some((n) => n.cell.type === "flower");
       const hasTree = adj.some((n) => n.cell.type === "tree");
       if (!hasFlower || !hasTree) continue;
-      const [px, pz] = gpos(gx, gy);
+      const [px, pz] = gpos(gx, gy, gridSize);
       const windMat = new THREE.MeshStandardMaterial({
         color: 0xaaddff,
         emissive: 0xaaddff,
@@ -239,14 +245,15 @@ function ruleWindValley(grid: Grid, root: THREE.Group) {
 }
 
 function ruleMagicGarden(grid: Grid, root: THREE.Group) {
-  for (let gx = 0; gx < GRID; gx++) {
-    for (let gy = 0; gy < GRID; gy++) {
+  const gridSize = grid.length;
+  for (let gx = 0; gx < gridSize; gx++) {
+    for (let gy = 0; gy < gridSize; gy++) {
       if (grid[gx][gy]?.type !== "pond") continue;
       const adj = neighbors(grid, gx, gy, ADJ8);
       const hasFlower = adj.some((n) => n.cell.type === "flower");
       const hasStatue = adj.some((n) => n.cell.type === "statue");
       if (!hasFlower || !hasStatue) continue;
-      const [px, pz] = gpos(gx, gy);
+      const [px, pz] = gpos(gx, gy, gridSize);
       const count = 10;
       const positions = new Float32Array(count * 3);
       const geo = new THREE.BufferGeometry();
@@ -288,17 +295,18 @@ function ruleMagicGarden(grid: Grid, root: THREE.Group) {
 }
 
 function ruleFestival(grid: Grid, root: THREE.Group) {
-  for (let gx = 0; gx < GRID; gx++) {
-    for (let gy = 0; gy < GRID; gy++) {
+  const gridSize = grid.length;
+  for (let gx = 0; gx < gridSize; gx++) {
+    for (let gy = 0; gy < gridSize; gy++) {
       if (grid[gx][gy]?.type !== "shrine") continue;
       const adj = neighbors(grid, gx, gy, ADJ8);
       const hasLamp = adj.some((n) => n.cell.type === "lamp");
       const hasHouse = adj.some((n) => n.cell.type === "house");
       if (!hasLamp || !hasHouse) continue;
-      const [px, pz] = gpos(gx, gy);
+      const [px, pz] = gpos(gx, gy, gridSize);
       const houses = adj.filter((n) => n.cell.type === "house");
       for (const h of houses) {
-        const [hx, hz] = gpos(h.gx, h.gy);
+        const [hx, hz] = gpos(h.gx, h.gy, gridSize);
         const count = 3;
         for (let i = 0; i < count; i++) {
           const t = (i + 1) / (count + 1);
@@ -312,14 +320,15 @@ function ruleFestival(grid: Grid, root: THREE.Group) {
 }
 
 function ruleHotSpring(grid: Grid, root: THREE.Group) {
-  for (let gx = 0; gx < GRID; gx++) {
-    for (let gy = 0; gy < GRID; gy++) {
+  const gridSize = grid.length;
+  for (let gx = 0; gx < gridSize; gx++) {
+    for (let gy = 0; gy < gridSize; gy++) {
       if (grid[gx][gy]?.type !== "pond") continue;
       const adj = neighbors(grid, gx, gy, ADJ8);
       const hasHouse = adj.some((n) => n.cell.type === "house");
       const hasLamp = adj.some((n) => n.cell.type === "lamp");
       if (!hasHouse || !hasLamp) continue;
-      const [px, pz] = gpos(gx, gy);
+      const [px, pz] = gpos(gx, gy, gridSize);
       for (let i = 0; i < 8; i++) {
         const steamMat = new THREE.MeshStandardMaterial({
           color: 0xffffff,
@@ -357,14 +366,15 @@ function ruleHotSpring(grid: Grid, root: THREE.Group) {
 }
 
 function ruleWeatherVane(grid: Grid, root: THREE.Group) {
-  for (let gx = 0; gx < GRID; gx++) {
-    for (let gy = 0; gy < GRID; gy++) {
+  const gridSize = grid.length;
+  for (let gx = 0; gx < gridSize; gx++) {
+    for (let gy = 0; gy < gridSize; gy++) {
       if (grid[gx][gy]?.type !== "house") continue;
       const adjWindmills = neighbors(grid, gx, gy, ADJ8).filter(
         (n) => n.cell.type === "windmill"
       );
       if (adjWindmills.length === 0) continue;
-      const [px, pz] = gpos(gx, gy);
+      const [px, pz] = gpos(gx, gy, gridSize);
       const vaneMat = new THREE.MeshStandardMaterial({
         color: 0xcc8833,
         roughness: 0.5,
@@ -395,14 +405,15 @@ function ruleWeatherVane(grid: Grid, root: THREE.Group) {
 }
 
 function rulePrayerLight(grid: Grid, root: THREE.Group) {
-  for (let gx = 0; gx < GRID; gx++) {
-    for (let gy = 0; gy < GRID; gy++) {
+  const gridSize = grid.length;
+  for (let gx = 0; gx < gridSize; gx++) {
+    for (let gy = 0; gy < gridSize; gy++) {
       if (grid[gx][gy]?.type !== "lamp") continue;
       const adjShrines = neighbors(grid, gx, gy, ADJ8).filter(
         (n) => n.cell.type === "shrine"
       );
       if (adjShrines.length === 0) continue;
-      const [px, pz] = gpos(gx, gy);
+      const [px, pz] = gpos(gx, gy, gridSize);
       const sacredLight = new THREE.PointLight(0x44ffaa, 0.8, 2.0, 2.0);
       sacredLight.position.set(px, 0.5, pz);
       root.add(sacredLight);
@@ -431,14 +442,15 @@ function rulePrayerLight(grid: Grid, root: THREE.Group) {
 }
 
 function ruleGatekeeper(grid: Grid, root: THREE.Group) {
-  for (let gx = 0; gx < GRID; gx++) {
-    for (let gy = 0; gy < GRID; gy++) {
+  const gridSize = grid.length;
+  for (let gx = 0; gx < gridSize; gx++) {
+    for (let gy = 0; gy < gridSize; gy++) {
       if (grid[gx][gy]?.type !== "house") continue;
       const adjStatues = neighbors(grid, gx, gy).filter(
         (n) => n.cell.type === "statue"
       );
       if (adjStatues.length === 0) continue;
-      const [px, pz] = gpos(gx, gy);
+      const [px, pz] = gpos(gx, gy, gridSize);
       const guardMat = new THREE.MeshStandardMaterial({
         color: 0x7a8a9a,
         roughness: 0.6,
@@ -468,14 +480,15 @@ function ruleGatekeeper(grid: Grid, root: THREE.Group) {
 }
 
 function ruleGardenSculpture(grid: Grid, root: THREE.Group) {
-  for (let gx = 0; gx < GRID; gx++) {
-    for (let gy = 0; gy < GRID; gy++) {
+  const gridSize = grid.length;
+  for (let gx = 0; gx < gridSize; gx++) {
+    for (let gy = 0; gy < gridSize; gy++) {
       if (grid[gx][gy]?.type !== "statue") continue;
       const adjFlowers = neighbors(grid, gx, gy).filter(
         (n) => n.cell.type === "flower"
       );
       if (adjFlowers.length === 0) continue;
-      const [px, pz] = gpos(gx, gy);
+      const [px, pz] = gpos(gx, gy, gridSize);
       const wreathMat = new THREE.MeshStandardMaterial({
         color: 0x44aa55,
         emissive: 0x22aa33,
@@ -518,16 +531,17 @@ function ruleGardenSculpture(grid: Grid, root: THREE.Group) {
 }
 
 function ruleWatchtower(grid: Grid, root: THREE.Group) {
-  for (let gx = 0; gx < GRID; gx++) {
-    for (let gy = 0; gy < GRID; gy++) {
+  const gridSize = grid.length;
+  for (let gx = 0; gx < gridSize; gx++) {
+    for (let gy = 0; gy < gridSize; gy++) {
       if (grid[gx][gy]?.type !== "tower") continue;
       const adjPonds = neighbors(grid, gx, gy).filter(
         (n) => n.cell.type === "pond"
       );
       if (adjPonds.length === 0) continue;
-      const [px, pz] = gpos(gx, gy);
+      const [px, pz] = gpos(gx, gy, gridSize);
       for (const pond of adjPonds) {
-        const [px2, pz2] = gpos(pond.gx, pond.gy);
+        const [px2, pz2] = gpos(pond.gx, pond.gy, gridSize);
         const dx = px2 - px;
         const dz = pz2 - pz;
         const beamLen = 0.6;
@@ -557,14 +571,15 @@ function ruleWatchtower(grid: Grid, root: THREE.Group) {
 }
 
 function ruleSacredGrove(grid: Grid, root: THREE.Group) {
-  for (let gx = 0; gx < GRID; gx++) {
-    for (let gy = 0; gy < GRID; gy++) {
+  const gridSize = grid.length;
+  for (let gx = 0; gx < gridSize; gx++) {
+    for (let gy = 0; gy < gridSize; gy++) {
       if (grid[gx][gy]?.type !== "shrine") continue;
       const adjFlowers = neighbors(grid, gx, gy, ADJ8).filter(
         (n) => n.cell.type === "flower"
       );
       if (adjFlowers.length === 0) continue;
-      const [px, pz] = gpos(gx, gy);
+      const [px, pz] = gpos(gx, gy, gridSize);
       const petalMat = new THREE.MeshStandardMaterial({
         color: 0xffb7c5,
         emissive: 0xffb7c5,
@@ -598,16 +613,17 @@ function ruleSacredGrove(grid: Grid, root: THREE.Group) {
 }
 
 function ruleLighthouseHarbor(grid: Grid, root: THREE.Group) {
-  for (let gx = 0; gx < GRID; gx++) {
-    for (let gy = 0; gy < GRID; gy++) {
+  const gridSize = grid.length;
+  for (let gx = 0; gx < gridSize; gx++) {
+    for (let gy = 0; gy < gridSize; gy++) {
       if (grid[gx][gy]?.type !== "lamp") continue;
       const adjPonds = neighbors(grid, gx, gy).filter(
         (n) => n.cell.type === "pond"
       );
       if (adjPonds.length === 0) continue;
-      const [px, pz] = gpos(gx, gy);
+      const [px, pz] = gpos(gx, gy, gridSize);
       for (const pond of adjPonds) {
-        const [px2, pz2] = gpos(pond.gx, pond.gy);
+        const [px2, pz2] = gpos(pond.gx, pond.gy, gridSize);
         const stripMat = new THREE.MeshStandardMaterial({
           color: 0xff8833,
           emissive: 0xff8833,
@@ -638,16 +654,17 @@ function ruleLighthouseHarbor(grid: Grid, root: THREE.Group) {
 }
 
 function ruleWatermill(grid: Grid, root: THREE.Group) {
-  for (let gx = 0; gx < GRID; gx++) {
-    for (let gy = 0; gy < GRID; gy++) {
+  const gridSize = grid.length;
+  for (let gx = 0; gx < gridSize; gx++) {
+    for (let gy = 0; gy < gridSize; gy++) {
       if (grid[gx][gy]?.type !== "windmill") continue;
       const adjPonds = neighbors(grid, gx, gy).filter(
         (n) => n.cell.type === "pond"
       );
       if (adjPonds.length === 0) continue;
-      const [px, pz] = gpos(gx, gy);
+      const [px, pz] = gpos(gx, gy, gridSize);
       for (const pond of adjPonds) {
-        const [px2, pz2] = gpos(pond.gx, pond.gy);
+        const [px2, pz2] = gpos(pond.gx, pond.gy, gridSize);
         const mx = (px + px2) / 2;
         const mz = (pz + pz2) / 2;
         const isX = gx !== pond.gx;
