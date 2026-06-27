@@ -82,6 +82,8 @@ pub fn run() {
             commands::get_garden_objects,
             commands::tick_growth,
             commands::get_season_info,
+            commands::get_grid_size,
+            commands::set_grid_size,
             commands::freeze_and_wipe,
             commands::list_frozen_gardens,
             commands::get_achievements,

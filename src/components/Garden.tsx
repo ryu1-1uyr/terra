@@ -63,6 +63,7 @@ export function Garden() {
     itemType: string;
   } | null>(null);
   const [isDaytime, setIsDaytime] = useState(false);
+  const [gridSize, setGridSize] = useState(GRID);
   const sceneRef = useRef<{
     cam: THREE.PerspectiveCamera;
     tiles: THREE.Mesh[];
@@ -75,14 +76,16 @@ export function Garden() {
   const loadData = useCallback(async () => {
     try {
       await invoke("tick_growth");
-      const [inv, objs, seasonInfo] = await Promise.all([
+      const [inv, objs, seasonInfo, gs] = await Promise.all([
         invoke<InventoryItem[]>("get_inventory"),
         invoke<PlacedObject[]>("get_garden_objects"),
         invoke<SeasonInfo>("get_season_info"),
+        invoke<number>("get_grid_size"),
       ]);
       setInventory(inv);
       setPlacedObjects(objs);
       setSeason(seasonInfo);
+      setGridSize(gs);
     } catch {
       // Tauri IPC unavailable (e.g. opened in browser)
     }
@@ -115,7 +118,7 @@ export function Garden() {
     }
 
     const objects = placedToGardenObjects(placedObjects);
-    const result = initThreeScene(canvas, objects, isDaytime, camStateRef.current);
+    const result = initThreeScene(canvas, objects, isDaytime, camStateRef.current, gridSize);
     cleanupRef.current = result.cleanup;
     sceneRef.current = {
       cam: result.cam,
@@ -132,7 +135,7 @@ export function Garden() {
       cleanupRef.current = null;
       sceneRef.current = null;
     };
-  }, [placedObjects]);
+  }, [placedObjects, gridSize]);
 
   const unplacedItems = inventory.filter((i) => !i.placed);
 
@@ -356,7 +359,7 @@ interface CameraState {
   dist: number;
 }
 
-function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[], initialDaytime = false, camState?: CameraState) {
+function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[], initialDaytime = false, camState?: CameraState, gridSize = GRID) {
   let running = true;
   let animFrameId = 0;
 
@@ -440,14 +443,14 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[], init
   scene.add(root);
 
   const baseMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(GRID + 0.6, 0.6, GRID + 0.6),
+    new THREE.BoxGeometry(gridSize + 0.6, 0.6, gridSize + 0.6),
     new THREE.MeshStandardMaterial({ color: 0x1a2436, roughness: 1, metalness: 0 })
   );
   baseMesh.position.set(0, -0.5, 0);
   baseMesh.receiveShadow = true;
   root.add(baseMesh);
 
-  const tiles = buildGridTiles(root, GRID);
+  const tiles = buildGridTiles(root, gridSize);
 
   // --- Tile hover ---
   let hoveredTile: THREE.Mesh | null = null;
@@ -478,7 +481,7 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[], init
 
   const growthAnimators: { update(dt: number): void }[] = [];
   for (const o of sorted) {
-    const [px, pz] = gpos(o.gx, o.gy);
+    const [px, pz] = gpos(o.gx, o.gy, gridSize);
     const { group: grownGroup, animator } = buildGrownObject({
       type: o.type, gx: o.gx, gy: o.gy, growth: o.growth ?? 0,
     });
@@ -488,17 +491,18 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[], init
   }
 
   // --- Emergence effects ---
-  applyEmergence(objects, root);
+  applyEmergence(objects, root, gridSize);
 
   // --- Floating particles (fireflies) ---
   const N = 70;
   const pos = new Float32Array(N * 3);
   const seed = new Float32Array(N);
 
+  const spread = gridSize * 1.375;
   function respawn(i: number) {
-    pos[i * 3] = (Math.random() - 0.5) * 11;
+    pos[i * 3] = (Math.random() - 0.5) * spread;
     pos[i * 3 + 1] = -0.3 - Math.random() * 0.6;
-    pos[i * 3 + 2] = (Math.random() - 0.5) * 11;
+    pos[i * 3 + 2] = (Math.random() - 0.5) * spread;
     seed[i] = Math.random() * 6.28;
   }
 
@@ -669,7 +673,7 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[], init
   // --- Camera orbit ---
   let yaw = camState?.yaw ?? 0.72;
   let pitch = camState?.pitch ?? 0.66;
-  let dist = camState?.dist ?? 15;
+  let dist = camState?.dist ?? (gridSize * 1.875);
   let dragging = false;
   let lx = 0;
   let ly = 0;

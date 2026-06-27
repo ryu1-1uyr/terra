@@ -482,6 +482,31 @@ pub fn get_season_info(db: State<'_, Arc<AppDb>>) -> Result<SeasonInfo, String> 
     })
 }
 
+#[tauri::command]
+pub fn get_grid_size(db: State<'_, Arc<AppDb>>) -> Result<i64, String> {
+    let conn = db.conn.lock().unwrap();
+    conn.query_row(
+        "SELECT grid_size FROM garden_state WHERE id = 1",
+        [],
+        |r| r.get(0),
+    )
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn set_grid_size(db: State<'_, Arc<AppDb>>, size: i64) -> Result<(), String> {
+    if size < 8 || size > 16 {
+        return Err("Grid size must be between 8 and 16".to_string());
+    }
+    let conn = db.conn.lock().unwrap();
+    conn.execute(
+        "UPDATE garden_state SET grid_size = ?1 WHERE id = 1",
+        [size],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 #[derive(Debug, Serialize, Clone)]
 pub struct FrozenGarden {
     pub id: i64,

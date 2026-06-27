@@ -176,6 +176,12 @@ function mockInvoke(cmd: string, args?: Record<string, any>): any {
     case "list_frozen_gardens":
       return [];
 
+    case "get_grid_size":
+      return 8;
+
+    case "set_grid_size":
+      return null;
+
     default:
       console.warn(`[mock] unhandled command: ${cmd}`);
       return null;

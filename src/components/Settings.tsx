@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import * as THREE from "three";
+import { invoke } from "../mock-invoke";
 import { ALL_OBJECT_TYPES } from "./GardenObjects";
 import { buildGrownObject } from "./GardenGrowth";
 import { EmergencePreview } from "./EmergencePreview";
@@ -47,6 +48,7 @@ function saveGardenSettings(s: GardenSettings) {
 export function Settings() {
   const [settings, setSettings] = useState<GardenSettings>(loadGardenSettings);
   const [autostart, setAutostart] = useState<boolean | null>(null);
+  const [gridSize, setGridSize] = useState<number | null>(null);
 
   const update = useCallback(
     (patch: Partial<GardenSettings>) => {
@@ -62,6 +64,7 @@ export function Settings() {
   const version = __APP_VERSION__;
 
   useEffect(() => {
+    invoke<number>("get_grid_size").then(setGridSize).catch(() => {});
     if (!(window as any).__TAURI_INTERNALS__) return;
     import("@tauri-apps/plugin-autostart").then(({ isEnabled }) =>
       isEnabled().then(setAutostart),
@@ -204,6 +207,31 @@ export function Settings() {
             />
             <span className="toggle-label">PC 起動時に自動で開く</span>
           </label>
+        </section>
+      )}
+
+      {gridSize != null && (
+        <section className="settings-section">
+          <h3>盤面</h3>
+          <label className="setting-slider">
+            <span className="slider-label">グリッドサイズ</span>
+            <input
+              type="range"
+              min="8"
+              max="16"
+              step="1"
+              value={gridSize}
+              onChange={(e) => {
+                const v = parseInt(e.target.value);
+                setGridSize(v);
+                invoke("set_grid_size", { size: v }).catch(() => {});
+              }}
+            />
+            <span className="slider-value">{gridSize}×{gridSize}</span>
+          </label>
+          <p className="settings-hint">
+            変更は次回ホーム画面を開いた時に反映されるよ
+          </p>
         </section>
       )}
 
