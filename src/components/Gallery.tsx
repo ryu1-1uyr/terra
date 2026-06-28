@@ -202,7 +202,7 @@ function initFrozenScene(canvas: HTMLCanvasElement, objects: FrozenObj[], gridSi
 
   let yaw = 0.72;
   let pitch = 0.66;
-  let dist = 15;
+  let dist = gridSize * 1.875;
   let dragging = false;
   let lx = 0;
   let ly = 0;
