@@ -203,6 +203,71 @@ const PRESETS: Preset[] = [
     cells: [[3,3,"windmill"],[3,4,"pond"]],
   },
   {
+    name: "蒸気工場 (風車2+塔2)",
+    desc: "ruleSteamFactory",
+    cells: [[3,3,"windmill"],[4,3,"windmill"],[3,4,"tower"],[4,4,"tower"]],
+  },
+  {
+    name: "大花畑 (花4)",
+    desc: "ruleGrandFlowerField",
+    cells: [[3,3,"flower"],[4,3,"flower"],[3,4,"flower"],[4,4,"flower"]],
+  },
+  {
+    name: "結界 (灯台4)",
+    desc: "ruleBarrier",
+    cells: [[3,3,"lamp"],[4,3,"lamp"],[3,4,"lamp"],[4,4,"lamp"]],
+  },
+  {
+    name: "古代の森 (木4)",
+    desc: "ruleAncientForest",
+    cells: [[3,3,"tree"],[4,3,"tree"],[3,4,"tree"],[4,4,"tree"]],
+  },
+  {
+    name: "蛍の湖 (池2+灯台2)",
+    desc: "ruleFireflyLake",
+    cells: [[3,3,"pond"],[4,3,"pond"],[3,4,"lamp"],[4,4,"lamp"]],
+  },
+  {
+    name: "神殿 (神社2+像2)",
+    desc: "ruleTemple",
+    cells: [[3,3,"shrine"],[4,3,"shrine"],[3,4,"statue"],[4,4,"statue"]],
+  },
+  {
+    name: "風の花園 (風車2+花2)",
+    desc: "ruleWindGarden",
+    cells: [[3,3,"windmill"],[4,3,"windmill"],[3,4,"flower"],[4,4,"flower"]],
+  },
+  {
+    name: "酒場街 (家2+灯台2)",
+    desc: "ruleTavernDistrict",
+    cells: [[3,3,"house"],[4,3,"house"],[3,4,"lamp"],[4,4,"lamp"]],
+  },
+  {
+    name: "コロシアム (像4)",
+    desc: "ruleColosseum",
+    cells: [[3,3,"statue"],[4,3,"statue"],[3,4,"statue"],[4,4,"statue"]],
+  },
+  {
+    name: "呪いの沼 (池2+像2)",
+    desc: "ruleCursedSwamp",
+    cells: [[3,3,"pond"],[4,3,"pond"],[3,4,"statue"],[4,4,"statue"]],
+  },
+  {
+    name: "魔法学院 (塔2+神社2)",
+    desc: "ruleMagicAcademy",
+    cells: [[3,3,"tower"],[4,3,"tower"],[3,4,"shrine"],[4,4,"shrine"]],
+  },
+  {
+    name: "灯台 (塔2+灯台2)",
+    desc: "ruleLighthouse",
+    cells: [[3,3,"tower"],[4,3,"tower"],[3,4,"lamp"],[4,4,"lamp"]],
+  },
+  {
+    name: "牧場 (家2+風車2)",
+    desc: "ruleRanch",
+    cells: [[3,3,"house"],[4,3,"house"],[3,4,"windmill"],[4,4,"windmill"]],
+  },
+  {
     name: "全部盛り",
     desc: "全9種を配置",
     cells: [
