@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { TaskList } from "./components/TaskList";
 import { Garden } from "./components/Garden";
 import { Gallery } from "./components/Gallery";
@@ -12,9 +12,52 @@ interface UpdateInfo {
   installing: boolean;
 }
 
+const TASK_HEIGHT_KEY = "terra:taskPanelHeight";
+const DEFAULT_TASK_HEIGHT = 260;
+const MIN_TASK_HEIGHT = 80;
+const MIN_GARDEN_HEIGHT = 120;
+
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>("home");
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [taskHeight, setTaskHeight] = useState(() => {
+    const saved = localStorage.getItem(TASK_HEIGHT_KEY);
+    return saved ? Number(saved) : DEFAULT_TASK_HEIGHT;
+  });
+  const dragging = useRef(false);
+  const layoutRef = useRef<HTMLDivElement>(null);
+
+  const onSplitterDown = useCallback(() => {
+    dragging.current = true;
+    document.body.style.cursor = "ns-resize";
+    document.body.style.userSelect = "none";
+  }, []);
+
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => {
+      if (!dragging.current || !layoutRef.current) return;
+      const rect = layoutRef.current.getBoundingClientRect();
+      const newTaskH = rect.bottom - e.clientY;
+      const clamped = Math.max(MIN_TASK_HEIGHT, Math.min(rect.height - MIN_GARDEN_HEIGHT, newTaskH));
+      setTaskHeight(clamped);
+    };
+    const onUp = () => {
+      if (!dragging.current) return;
+      dragging.current = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      setTaskHeight((h) => {
+        localStorage.setItem(TASK_HEIGHT_KEY, String(h));
+        return h;
+      });
+    };
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
+    return () => {
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
+    };
+  }, []);
 
   useEffect(() => {
     checkForUpdate();
@@ -95,11 +138,17 @@ function App() {
       )}
       <main className="main-content">
         {currentPage === "home" ? (
-          <div className="home-layout">
+          <div className="home-layout" ref={layoutRef}>
             <div className="home-garden">
               <Garden />
             </div>
-            <div className="home-tasks">
+            <div
+              className="home-splitter"
+              onPointerDown={onSplitterDown}
+            >
+              <div className="splitter-handle" />
+            </div>
+            <div className="home-tasks" style={{ height: taskHeight }}>
               <TaskList />
             </div>
           </div>
