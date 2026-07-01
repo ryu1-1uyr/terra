@@ -5,6 +5,8 @@ use tauri::{
     tray::TrayIconBuilder,
 };
 
+pub mod ambient;
+mod category;
 mod commands;
 mod db;
 mod process_monitor;
@@ -30,6 +32,8 @@ pub fn run() {
 
             let tracking_state = Arc::new(process_monitor::TrackingState::new());
             app.manage(tracking_state.clone());
+
+            app.manage(ambient::AmbientCache::new());
 
             // Start process monitoring polling
             process_monitor::start_polling(app.handle().clone(), app_db, tracking_state);
@@ -70,6 +74,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::get_ambient_color,
             commands::list_tasks,
             commands::create_task,
             commands::delete_task,

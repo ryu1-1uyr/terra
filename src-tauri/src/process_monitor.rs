@@ -44,17 +44,14 @@ impl TrackingState {
     }
 }
 
-fn random_reward_type() -> String {
+/// [0.0, 1.0) の一様乱数を生成する（依存追加を避けてナノ秒を種にする）。
+fn random_roll() -> f64 {
     use std::time::{SystemTime, UNIX_EPOCH};
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
         .subsec_nanos();
-    let types = [
-        "house", "tree", "flower", "tower", "windmill",
-        "shrine", "lamp", "pond", "statue",
-    ];
-    types[(nanos as usize) % types.len()].to_string()
+    nanos as f64 / 1_000_000_000.0
 }
 
 
@@ -85,6 +82,7 @@ fn record_achievement(
     achieved_date: &str,
     duration_secs: i64,
     is_daily: bool,
+    process_name: &str,
 ) -> Option<AchievementEvent> {
     let already = conn
         .query_row(
@@ -107,7 +105,7 @@ fn record_achievement(
         rusqlite::params![task_id, achieved_date, &now, duration_secs],
     );
 
-    let item_type = random_reward_type();
+    let item_type = crate::category::weighted_reward_type(process_name, random_roll());
     let _ = conn.execute(
         "INSERT INTO inventory (item_type, item_variant, obtained_at) VALUES (?1, ?2, ?3)",
         rusqlite::params![&item_type, Option::<String>::None, &now],
@@ -199,6 +197,7 @@ fn poll_and_record(
                 &tracked.started_date,
                 duration_secs,
                 tracked.is_daily,
+                &tracked.process_name,
             ) {
                 events.push(ev);
             }
@@ -259,6 +258,7 @@ fn poll_and_record(
                 &tracked.started_date,
                 duration_secs,
                 tracked.is_daily,
+                &tracked.process_name,
             ) {
                 events.push(ev);
             }

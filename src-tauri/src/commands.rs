@@ -26,6 +26,56 @@ pub struct CreateTaskInput {
     pub daily: bool,
 }
 
+/// 起動中の「監視対象」アプリのアイコン色を彩度重み付きでブレンドし、
+/// 庭に反映する現在のアンビエント色を返す。対象が起動していなければ None。
+#[tauri::command]
+pub fn get_ambient_color(
+    db: State<'_, Arc<AppDb>>,
+    cache: State<'_, crate::ambient::AmbientCache>,
+) -> Result<Option<crate::ambient::Rgb>, String> {
+    use std::collections::HashSet;
+
+    // 監視対象タスクに紐づくプロセス名（小文字化）を集める
+    let names: HashSet<String> = {
+        let conn = db.conn.lock().unwrap();
+        let mut stmt = conn
+            .prepare(
+                "SELECT tp.process_name FROM task_processes tp
+                 JOIN tasks t ON t.id = tp.task_id
+                 WHERE t.archived = 0",
+            )
+            .map_err(|e| e.to_string())?;
+        let rows = stmt
+            .query_map([], |row| row.get::<_, String>(0))
+            .map_err(|e| e.to_string())?;
+        rows.filter_map(|r| r.ok())
+            .map(|n| n.to_lowercase())
+            .collect()
+    };
+
+    if names.is_empty() {
+        return Ok(None);
+    }
+
+    // 起動中プロセスを走査し、対象アプリのアイコン色を集める
+    let mut sys = sysinfo::System::new();
+    sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+
+    let mut seen = HashSet::new();
+    let mut colors = Vec::new();
+    for process in sys.processes().values() {
+        let name = process.name().to_string_lossy().to_lowercase();
+        if !names.contains(&name) || !seen.insert(name.clone()) {
+            continue;
+        }
+        if let Some(c) = cache.color_for(&name, process.exe()) {
+            colors.push(c);
+        }
+    }
+
+    Ok(crate::ambient::blend_saturation_weighted(&colors))
+}
+
 #[tauri::command]
 pub fn list_tasks(
     db: State<'_, Arc<AppDb>>,
