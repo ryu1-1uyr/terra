@@ -36,10 +36,20 @@ export function computeEffectIntensities(
   if (max <= 0) return { ...ZERO_INTENSITIES };
 
   const grey = min;
-  const chromaR = r - grey;
-  const chromaG = g - grey;
-  const chromaB = b - grey;
   const sat = (max - min) / max; // HSV 彩度
+
+  // 支配色を際立たせる: 最大 chroma で正規化した比率を二乗で掛け、
+  // 弱い副次チャンネル（例: 濃い緑 40,170,60 に紛れる青成分）を潰す。
+  // 拮抗する色（紫=R≈B）は両チャンネルとも残り、自然に合成される。
+  const rawR = r - grey;
+  const rawG = g - grey;
+  const rawB = b - grey;
+  const maxChroma = Math.max(rawR, rawG, rawB);
+  const focus = (c: number) =>
+    maxChroma > 0 ? c * (c / maxChroma) * (c / maxChroma) : 0;
+  const chromaR = focus(rawR);
+  const chromaG = focus(rawG);
+  const chromaB = focus(rawB);
 
   // 鮮やか(高彩度)→濃(1)、淡い→薄(0)
   const dense = smoothstep(0.25, 0.75, sat);
