@@ -8,6 +8,8 @@ import { buildGrownObject } from "./GardenGrowth";
 import { loadGardenSettings, type GardenSettings } from "./Settings";
 import { GRID, gpos } from "./garden/grid";
 import { createGardenRenderer, buildGridTiles } from "./garden/scene";
+import { EffectManager } from "./garden/effects/manager";
+import { computeEffectIntensities } from "./garden/effects/mapping";
 import "./Garden.css";
 
 interface GardenObject {
@@ -63,6 +65,7 @@ export function Garden() {
     itemType: string;
   } | null>(null);
   const [isDaytime, setIsDaytime] = useState(false);
+  const [effectGlobal, setEffectGlobal] = useState(1);
   const [gridSize, setGridSize] = useState(GRID);
   const sceneRef = useRef<{
     cam: THREE.PerspectiveCamera;
@@ -326,6 +329,41 @@ export function Garden() {
           >
             ×
           </button>
+        </div>
+      )}
+      {import.meta.env.DEV && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: 8,
+            left: 8,
+            zIndex: 50,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "4px 8px",
+            borderRadius: 6,
+            background: "rgba(0,0,0,0.55)",
+            color: "#cfe",
+            font: "11px/1 monospace",
+            pointerEvents: "auto",
+          }}
+        >
+          <span>FX {effectGlobal.toFixed(2)}</span>
+          <input
+            type="range"
+            min={0}
+            max={3}
+            step={0.05}
+            value={effectGlobal}
+            onChange={(e) => {
+              const v = parseFloat(e.target.value);
+              setEffectGlobal(v);
+              window.dispatchEvent(
+                new CustomEvent("garden-effect-global-changed", { detail: v })
+              );
+            }}
+          />
         </div>
       )}
       {season && (
@@ -760,6 +798,24 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[], init
   let daytimeNow = initialDaytime;
   const skyTarget = new THREE.Color();
 
+  // --- Effect system (検知色→大気エフェクト) ---
+  // loop() から参照するため、アニメーションループより前に生成する。
+  const effectManager = new EffectManager({
+    scene,
+    camera: cam,
+    renderer,
+    bounds: gridSize,
+    gridSize,
+  });
+  // フェーズ1以降でここに register する: effectManager.register(new WaterEffect())
+  let lastAmbientRgb: { r: number; g: number; b: number } | null = null;
+  let effectGlobal = 1;
+  const recomputeEffectIntensities = () => {
+    effectManager.setIntensities(
+      computeEffectIntensities(lastAmbientRgb, effectGlobal)
+    );
+  };
+
   // --- Animation loop ---
   let t = 0;
 
@@ -794,6 +850,8 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[], init
     if (scene.fog instanceof THREE.Fog) {
       scene.fog.color.lerp(skyTarget, AMBIENT_LERP);
     }
+
+    effectManager.update(0.016, t);
 
     for (const anim of growthAnimators) anim.update(0.016);
 
@@ -952,8 +1010,16 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[], init
     ambientColor = d
       ? new THREE.Color(d.r / 255, d.g / 255, d.b / 255)
       : null;
+    lastAmbientRgb = d ?? null;
+    recomputeEffectIntensities();
   };
   window.addEventListener("garden-ambient-changed", onAmbientChanged);
+
+  const onEffectGlobalChanged = (e: Event) => {
+    effectGlobal = (e as CustomEvent<number>).detail;
+    recomputeEffectIntensities();
+  };
+  window.addEventListener("garden-effect-global-changed", onEffectGlobalChanged);
 
   if (initialDaytime) {
     onDaytimeChanged(new CustomEvent("garden-daytime-changed", { detail: true }));
@@ -967,6 +1033,11 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[], init
     window.removeEventListener("garden-settings-changed", onSettingsChanged);
     window.removeEventListener("garden-daytime-changed", onDaytimeChanged);
     window.removeEventListener("garden-ambient-changed", onAmbientChanged);
+    window.removeEventListener(
+      "garden-effect-global-changed",
+      onEffectGlobalChanged
+    );
+    effectManager.dispose();
     canvas.removeEventListener("pointerdown", onPointerDown);
     canvas.removeEventListener("pointermove", onPointerMove);
     canvas.removeEventListener("pointerup", onPointerUp);
