@@ -11,6 +11,7 @@ import { createGardenRenderer, buildGridTiles } from "./garden/scene";
 import { EffectManager } from "./garden/effects/manager";
 import { computeEffectIntensities } from "./garden/effects/mapping";
 import { UnderwaterEffect, RainEffect } from "./garden/effects/water";
+import { EmberEffect, GlowEffect } from "./garden/effects/fire";
 import "./Garden.css";
 
 // 開発用: 監視タスク無しでも各エフェクト変種を確認するためのテスト色
@@ -860,6 +861,8 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[], init
   });
   effectManager.register(new UnderwaterEffect());
   effectManager.register(new RainEffect());
+  effectManager.register(new EmberEffect());
+  effectManager.register(new GlowEffect());
   let lastAmbientRgb: { r: number; g: number; b: number } | null = null;
   let effectGlobal = 1;
   const recomputeEffectIntensities = () => {
