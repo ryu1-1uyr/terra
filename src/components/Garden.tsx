@@ -10,7 +10,18 @@ import { GRID, gpos } from "./garden/grid";
 import { createGardenRenderer, buildGridTiles } from "./garden/scene";
 import { EffectManager } from "./garden/effects/manager";
 import { computeEffectIntensities } from "./garden/effects/mapping";
+import { UnderwaterEffect, RainEffect } from "./garden/effects/water";
 import "./Garden.css";
+
+// 開発用: 監視タスク無しでも各エフェクト変種を確認するためのテスト色
+const DEV_SWATCHES: [string, number, number, number][] = [
+  ["青濃", 30, 90, 220],
+  ["青薄", 150, 190, 235],
+  ["赤濃", 210, 40, 40],
+  ["赤薄", 240, 180, 180],
+  ["緑濃", 40, 170, 60],
+  ["緑薄", 190, 225, 190],
+];
 
 interface GardenObject {
   type: ObjectType;
@@ -353,7 +364,7 @@ export function Garden() {
           <input
             type="range"
             min={0}
-            max={3}
+            max={5}
             step={0.05}
             value={effectGlobal}
             onChange={(e) => {
@@ -364,6 +375,46 @@ export function Garden() {
               );
             }}
           />
+          {DEV_SWATCHES.map(([label, r, g, b]) => (
+            <button
+              key={label}
+              title={label}
+              onClick={() =>
+                window.dispatchEvent(
+                  new CustomEvent("garden-ambient-changed", {
+                    detail: { r, g, b },
+                  })
+                )
+              }
+              style={{
+                width: 16,
+                height: 16,
+                padding: 0,
+                border: "1px solid #fff3",
+                borderRadius: 3,
+                background: `rgb(${r},${g},${b})`,
+                cursor: "pointer",
+              }}
+            />
+          ))}
+          <button
+            title="クリア"
+            onClick={() =>
+              window.dispatchEvent(
+                new CustomEvent("garden-ambient-changed", { detail: null })
+              )
+            }
+            style={{
+              padding: "0 6px",
+              border: "1px solid #fff3",
+              borderRadius: 3,
+              background: "transparent",
+              color: "#cfe",
+              cursor: "pointer",
+            }}
+          >
+            ×
+          </button>
         </div>
       )}
       {season && (
@@ -807,7 +858,8 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[], init
     bounds: gridSize,
     gridSize,
   });
-  // フェーズ1以降でここに register する: effectManager.register(new WaterEffect())
+  effectManager.register(new UnderwaterEffect());
+  effectManager.register(new RainEffect());
   let lastAmbientRgb: { r: number; g: number; b: number } | null = null;
   let effectGlobal = 1;
   const recomputeEffectIntensities = () => {
