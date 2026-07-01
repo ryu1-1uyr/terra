@@ -72,6 +72,7 @@ export function Garden() {
     clearHoverTile: () => void;
     getCameraState: () => CameraState;
   } | null>(null);
+  const ambientRef = useRef<{ r: number; g: number; b: number } | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -109,6 +110,32 @@ export function Garden() {
     };
   }, [loadData]);
 
+  // Poll the ambient color of currently-running monitored apps and broadcast it
+  // to the scene, which tints the sky/fog toward it.
+  useEffect(() => {
+    let active = true;
+    const pollAmbient = async () => {
+      try {
+        const c = await invoke<{ r: number; g: number; b: number } | null>(
+          "get_ambient_color"
+        );
+        if (!active) return;
+        ambientRef.current = c;
+        window.dispatchEvent(
+          new CustomEvent("garden-ambient-changed", { detail: c })
+        );
+      } catch {
+        // Tauri IPC unavailable (e.g. opened in browser)
+      }
+    };
+    pollAmbient();
+    const id = setInterval(pollAmbient, 30000);
+    return () => {
+      active = false;
+      clearInterval(id);
+    };
+  }, []);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -128,6 +155,13 @@ export function Garden() {
       clearHoverTile: result.clearHoverTile,
       getCameraState: result.getCameraState,
     };
+
+    // Re-apply the last known ambient color so a freshly rebuilt scene keeps its tint.
+    if (ambientRef.current) {
+      window.dispatchEvent(
+        new CustomEvent("garden-ambient-changed", { detail: ambientRef.current })
+      );
+    }
 
     return () => {
       camStateRef.current = result.getCameraState();
@@ -716,6 +750,16 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[], init
   canvas.addEventListener("pointerup", onPointerUp);
   canvas.addEventListener("wheel", onWheel, { passive: false });
 
+  // --- Ambient color (起動中アプリのアイコン色を空気に反映) ---
+  // NOTE: loop() 内で参照するため、必ずアニメーションループより前に宣言する。
+  const NIGHT_SKY = 0x0e1220;
+  const DAY_SKY = 0x5b8ec4;
+  const AMBIENT_STRENGTH = 0.5; // 昼夜ベース色へ実色を混ぜる割合
+  const AMBIENT_LERP = 0.03; // 目標色への毎フレーム追従速度
+  let ambientColor: THREE.Color | null = null;
+  let daytimeNow = initialDaytime;
+  const skyTarget = new THREE.Color();
+
   // --- Animation loop ---
   let t = 0;
 
@@ -740,6 +784,16 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[], init
     }
     rimM.intensity = 24 + 6 * Math.sin(t * 1.3);
     rimL.intensity = 16 + 5 * Math.sin(t * 1.7 + 2.0);
+
+    // Ambient tint: 空とフォグを「昼夜ベース色 + 実色」へ滑らかに寄せる
+    skyTarget.setHex(daytimeNow ? DAY_SKY : NIGHT_SKY);
+    if (ambientColor) skyTarget.lerp(ambientColor, AMBIENT_STRENGTH);
+    if (scene.background instanceof THREE.Color) {
+      scene.background.lerp(skyTarget, AMBIENT_LERP);
+    }
+    if (scene.fog instanceof THREE.Fog) {
+      scene.fog.color.lerp(skyTarget, AMBIENT_LERP);
+    }
 
     for (const anim of growthAnimators) anim.update(0.016);
 
@@ -819,6 +873,7 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[], init
 
   const onDaytimeChanged = (e: Event) => {
     const day = (e as CustomEvent<boolean>).detail;
+    daytimeNow = day;
     if (day) {
       renderer.toneMappingExposure = 1.05;
       scene.background = new THREE.Color(0x5b8ec4);
@@ -891,6 +946,15 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[], init
   };
   window.addEventListener("garden-daytime-changed", onDaytimeChanged);
 
+  const onAmbientChanged = (e: Event) => {
+    const d = (e as CustomEvent<{ r: number; g: number; b: number } | null>)
+      .detail;
+    ambientColor = d
+      ? new THREE.Color(d.r / 255, d.g / 255, d.b / 255)
+      : null;
+  };
+  window.addEventListener("garden-ambient-changed", onAmbientChanged);
+
   if (initialDaytime) {
     onDaytimeChanged(new CustomEvent("garden-daytime-changed", { detail: true }));
   }
@@ -902,6 +966,7 @@ function initThreeScene(canvas: HTMLCanvasElement, objects: GardenObject[], init
     resizeObs.disconnect();
     window.removeEventListener("garden-settings-changed", onSettingsChanged);
     window.removeEventListener("garden-daytime-changed", onDaytimeChanged);
+    window.removeEventListener("garden-ambient-changed", onAmbientChanged);
     canvas.removeEventListener("pointerdown", onPointerDown);
     canvas.removeEventListener("pointermove", onPointerMove);
     canvas.removeEventListener("pointerup", onPointerUp);

@@ -182,6 +182,10 @@ function mockInvoke(cmd: string, args?: Record<string, any>): any {
     case "set_grid_size":
       return null;
 
+    case "get_ambient_color":
+      // ブラウザのモックモードでは監視対象が無いので着色なし
+      return null;
+
     default:
       console.warn(`[mock] unhandled command: ${cmd}`);
       return null;
